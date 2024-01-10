@@ -54,14 +54,40 @@ Definition swapmath_spec : ident * funspec :=
    POST [ tvoid ]
     PROP () RETURN ()
     (*SEP(emp)*)
-    SEP (data_at sh1 tint (Vint (Int.repr a)) x; data_at sh2 tint (Vint (Int.repr (a + 1))) y).
+    SEP (data_at sh1 tint (Vint (Int.repr a)) x; data_at sh2 tint (Vint (Int.repr (a + 1))) y). 
 
-Definition Gprog := [swapskip_spec; swap_spec; swapmath_spec].
+(*if spec: *)
+Definition swapif_spec : ident * funspec :=
+  DECLARE _swapif
+   WITH x: val, y: val, sh1 : share, sh2 : share, a : Z, b : Z
+   PRE [ tptr tint, tptr tint ]
+    PROP  (writable_share sh1; writable_share sh2; 
+    Int.min_signed <= a <= Int.max_signed; Int.min_signed <= b <= Int.max_signed)
+    (*LOCAL (temp _x x; temp _y y)*)
+    PARAMS (x; y)
+    (*SEP(emp)*)
+    SEP (data_at sh1 tint (Vint (Int.repr a)) x; data_at sh2 tint (Vint (Int.repr b)) y)
+   POST [ tvoid ]
+    PROP () RETURN () 
+    (SEPx(
+      if Z_lt_ge_dec a b then 
+      (data_at sh1 tint (Vint (Int.repr b)) x :: (data_at sh2 tint (Vint (Int.repr a)) y :: nil)) 
+      else 
+      (data_at sh1 tint (Vint (Int.repr b)) x :: (data_at sh2 tint (Vint (Int.repr b)) y :: nil))
+      )
+    ).
+    
+    
 
-Lemma swapmathSynth: semax_body Vprog Gprog f_swapmath swapmath_spec.
+Definition Gprog := [swapskip_spec; swap_spec; swapmath_spec; swapif_spec].
+
+Lemma swapifSynth: semax_body Vprog Gprog f_swapif swapif_spec.
 Proof.
-  start_function. fastforward. entailer!.
-Qed. 
+  start_function. fastforward. 
+  destruct (Z_lt_ge_dec a b) eqn:Hzlt. entailer!.
+  contradiction. 
+  destruct (Z_lt_ge_dec a b) eqn:Hzlt. contradiction. entailer!.
+Qed.
 
 (*auxiliary start function 1: the function specific lemmas are commented out*)
 Ltac start_aux1 := 
@@ -249,7 +275,6 @@ Definition f_swap (s : statement) := {|
   fn_body := s
 |}.
 
-
 Ltac start_functionaux := start_aux1; start_aux2; start_aux3.
 
 (*all the maps*)
@@ -324,7 +349,7 @@ Definition write_identmap (iden_map prec_map post_map : total_map string) (x : s
   else map_update prec_map x v2 (*update precc_map for x to point to v2*)
 .
 
-
+(* x -> a; y -> b | x -> b; y -> a     |  y -> _a2 |  y -> _a2*) 
 Fixpoint readSynth (iden_map prec_map post_map : total_map string) (l : list string) :=
   match l with 
   | nil => (iden_map, (prec_map, post_map))
@@ -345,54 +370,82 @@ Fixpoint writeSynth (iden_map prec_map post_map : total_map string) (l : list st
 end. 
 
 Definition readRes := readSynth ident_map precc_map postc_map vars.
-(*x,_a2,_x : readtac x _a2 _x*)
+
+
+Ltac matchReadLoc l a idG idT :=
+  match l with 
+  | nil => eapply semax_seq' with (c1 := (Sset idG (Ederef (Etempvar idT (tptr tint)) tint)))
+  | temp ?t a  :: ?l' => simpl
+  | _ :: ?l' => matchReadLoc l' a idG idT
+  end.
+
+Ltac matchReadSepAndTac s l v idG idT :=
+  match s with 
+  | nil => simpl
+  | data_at ?sh tint ?a v  :: ?t => (*match => call ltac loc*) matchReadLoc l a idG idT
+  | _ :: ?t => matchReadSepAndTac t l v idG idT
+  end.
+
+
 Ltac readtac v idG idT  :=
   match goal with
-  | |- semax _ (PROPx _ (LOCALx (temp ?t ?a :: _) (SEPx ((data_at ?sh tint ?a v) ::  _)))) _ _ => simpl
-  | |- semax _ (PROPx _ (LOCALx (temp ?t ?a :: _) (SEPx (_ ++ (data_at ?sh tint ?a v) ::  _)))) _ _ => simpl
-  | |- semax _ (PROPx _ (LOCALx (temp ?t ?a :: _) (SEPx (_ ++ [data_at ?sh tint ?a v])))) _ _ => simpl
-  | |- semax _ (PROPx _ (LOCALx (_ ++ temp ?t ?a :: _) (SEPx ((data_at ?sh tint ?a v) ::  _)))) _ _ => simpl
-  | |- semax _ (PROPx _ (LOCALx (_ ++ temp ?t ?a :: _) (SEPx (_ ++ (data_at ?sh tint ?a v) ::  _)))) _ _ => simpl
-  | |- semax _ (PROPx _ (LOCALx (_ ++ temp ?t ?a :: _) (SEPx (_ ++ [data_at ?sh tint ?a v])))) _ _ => simpl
-  | |- semax _ (PROPx _ (LOCALx (_ ++ [temp ?t ?a]) (SEPx ((data_at ?sh tint ?a v) ::  _)))) _ _ => simpl
-  | |- semax _ (PROPx _ (LOCALx (_ ++ [temp ?t ?a]) (SEPx (_ ++ (data_at ?sh tint ?a v) ::  _)))) _ _ => simpl
-  | |- semax _ (PROPx _ (LOCALx (_ ++ [temp ?t ?a]) (SEPx (_ ++ [data_at ?sh tint ?a v])))) _ _ => simpl
-  | |- semax _ (PROPx _ (LOCALx ?L (SEPx ((data_at ?sh tint ?a v) ::  _)))) _ _ => eapply semax_seq' with (c1 := (Sset idG (Ederef (Etempvar idT (tptr tint)) tint))) (*read*)
-  | |- semax _ (PROPx _ (LOCALx ?L (SEPx (_ ++ (data_at ?sh tint ?a v) ::  _)))) _ _ => eapply semax_seq' with (c1 := (Sset idG (Ederef (Etempvar idT (tptr tint)) tint))) (*read*)
-  | |- semax _ (PROPx _ (LOCALx ?L (SEPx (_ ++ [data_at ?sh tint ?a v])))) _ _ => eapply semax_seq' with (c1 := (Sset idG (Ederef (Etempvar idT (tptr tint)) tint))) (*read*)
+  | |- semax _ (PROPx _ (LOCALx ?Lx (SEPx ?Sx))) _ _ => matchReadSepAndTac Sx Lx v idG idT
   end.
 
-(*x _x*)
-Ltac writetac v idV := 
+
+Ltac matchWriteLoc l a idV :=
+  match l with 
+  | nil => simpl
+  | temp ?t a  :: ?l' => eapply semax_seq' with (c1 := (Sassign (Ederef (Etempvar idV (tptr tint)) tint) (Etempvar t tint)))
+  | _ :: ?l' => matchWriteLoc l' a idV
+  end.
+
+Ltac matchWriteSepAndTac s l v idV :=
+  match s with
+  | nil => simpl
+  | data_at ?sh tint ?a v  :: ?t => matchWriteLoc l a idV 
+  | _ :: ?t => matchWriteSepAndTac t l v idV 
+  end. 
+
+(*x _x; x -> b; Check pre Loc. *)
+Ltac writetac v idV :=
   match goal with 
-  | |- semax _ (PROPx _ (LOCALx (temp ?idt ?idv' :: _) (SEPx ((data_at ?sh tint ?idv v) ::  _)))) _ 
-        (normal_ret_assert (PROPx _ (LOCALx _ (SEPx ((data_at ?sh tint ?idv' v) ::  _)))) * _) => eapply semax_seq' with (c1 := (Sassign (Ederef (Etempvar idV (tptr tint)) tint) (Etempvar idt tint)))
-  | |- semax _ _ _ _ => simpl
+  | |- semax _ (PROPx _ (LOCALx ?Lx (SEPx ?Sx))) _ 
+        (normal_ret_assert (PROPx _ (LOCALx _ (SEPx ?Spx)) * _)%logic) => matchWriteSepAndTac Spx Lx v idV
+  | |- semax _ (PROPx _ (LOCALx ?Lx (SEPx ?Sx))) _ 
+  (normal_ret_assert (fun rho : environ => ((PROPx _ (LOCALx _ (SEPx ?Spx))) rho * _ rho)%logic)) => matchWriteSepAndTac Spx Lx v idV
   end.
 
-
+Ltac foldtac :=
+  match goal with 
+  | |- semax _ (PROPx _ (LOCALx ?Lx (SEPx ?Sx))) _ 
+          (normal_ret_assert ?N) => change (normal_ret_assert N) with abbreviate
+  end.
 
 
 Lemma body_swapsynthesisLtacs: exists s, semax_body Vprog Gprog (f_swap s)  swap_spec.
 Proof.
   eexists. start_functionaux.
-  (*ltac read:  
-    F, F (D)
-    F, M (D)
-    F, L (D)
-  ——————————
-    M, F (D)
-    M, M (D)
-    M, L (D)
-  ———————————
-    L, F (D)
-    L, M (D)
-    L, L (D)*)
-    readtac x _a2 _x. apply semax_later_trivial. load_tac. simpl.
-    (*readtac y _b2 _y.*) 
-    eapply semax_seq' with (c1 := (Sset _b2 (Ederef (Etempvar _y (tptr tint)) tint))). apply semax_later_trivial. load_tac. simpl.
-    (*write - unfold*)
-Admitted.
+  readtac x _a2 _x. apply semax_later_trivial. load_tac. simpl.
+  (*readtac y _b2 _y.*) 
+  readtac y _b2 _y. apply semax_later_trivial. load_tac. simpl.
+  (*write - unfold*)
+  unfold POSTCONDITION. unfold abbreviate.
+  writetac y _y. apply semax_later_trivial. store_tac. simpl.
+  (*second write*)
+  writetac x _x.
+  apply semax_later_trivial. store_tac. simpl. 
+  (*skip part*)
+  unfold stackframe_of. simpl map. rewrite fold_right_nil. simpl.
+  (*rewrite sepcon_emp.*)
+  eapply semax_post. 5:{ eapply semax_skip. }
+  apply derives_ENTAIL. eapply drop_LOCAL'' with (n := O). eapply drop_LOCAL'' with (n := O). 
+  eapply drop_LOCAL'' with (n := O). eapply drop_LOCAL'' with (n := O). simpl. 
+  intros. entailer!.
+  apply derives_ENTAIL.
+  simpl. intros. entailer!.
+  simpl. intros. entailer!. simpl. intros. entailer!.
+Qed.
 
 Lemma body_swapsynthesisRules: exists s, semax_body Vprog Gprog (f_swap s)  swap_spec.
 Proof.
@@ -404,7 +457,7 @@ Proof.
   Definition post_rmap := snd (snd readResult).
   (*Set commands after read*)
   (*Check precc. x -> _a2; get identifer -> idmap (_a2); var_map *)
-  (*first read*)
+  (*first read - (c1 := (Sset _a2 (Ederef (Etempvar _x (tptr tint)) tint))).*)
   eapply semax_seq' with (c1 := ((Sset (id_map (pre_rmap "x")) (Ederef (Etempvar (id_map (var_map "x")) (tptr tint)) tint)))).
   apply semax_later_trivial. load_tac. simpl.
   (*second read*)
@@ -428,18 +481,81 @@ Proof.
   eexists. start_functionaux.
   (*copy swap synthesis*)
   (*read*)
-  eapply semax_seq' with (c1 := (Sset _a2 (Ederef (Etempvar (id_map "_x") (tptr tint)) tint))).
+  eapply semax_seq' with (c1 := (Sset _a2 (Ederef (Etempvar _x (tptr tint)) tint))).
   apply semax_later_trivial. load_tac. simpl. 
   (*second read*)
-  eapply semax_seq' with (c1 := (Sset _b2 (Ederef (Etempvar (id_map "_y") (tptr tint)) tint))).
+  eapply semax_seq' with (c1 := (Sset _b2 (Ederef (Etempvar _y (tptr tint)) tint))).
   apply semax_later_trivial. load_tac. simpl.
   (*first write*)
-  eapply semax_seq' with (c1 := (Sassign (Ederef (Etempvar (id_map "_y") (tptr tint)) tint) (Etempvar _a2 tint))).
+  eapply semax_seq' with (c1 := (Sassign (Ederef (Etempvar _y (tptr tint)) tint) (Etempvar _a2 tint))).
   apply semax_later_trivial. store_tac. simpl.
   (*second write*)
-  eapply semax_seq' with (c1 := (Sassign (Ederef (Etempvar (id_map "_x") (tptr tint)) tint) (Etempvar _b2 tint)))(c2 := Sskip).
+  eapply semax_seq' with (c1 := (Sassign (Ederef (Etempvar _x (tptr tint)) tint) (Etempvar _b2 tint)))(c2 := Sskip).
   apply semax_later_trivial. store_tac. simpl. forward. entailer!.
 Qed.
+
+
+Definition f_swapmath (s : statement) := {|
+  fn_return := tvoid;
+  fn_callconv := cc_default;
+  fn_params := ((_x, (tptr tint)) :: (_y, (tptr tint)) :: nil);
+  fn_vars := nil;
+  fn_temps := ((_a2, tint) :: (_b2, tint) :: nil);
+  fn_body := s
+|}.
+
+Lemma body_swapmathsynthesis: exists s, semax_body Vprog Gprog (f_swapmath s)  swapmath_spec.
+Proof.
+  eexists. start_functionaux.
+  (*read*)
+  eapply semax_seq' with (c1 := (Sset _a2 (Ederef (Etempvar _x (tptr tint)) tint))).
+  apply semax_later_trivial. load_tac. simpl. 
+  (*second read*)
+  eapply semax_seq' with (c1 := (Sset _b2 (Ederef (Etempvar _y (tptr tint)) tint))).
+  apply semax_later_trivial. load_tac. simpl.
+  (*write*)
+  eapply semax_seq' with (c1 := (Sassign (Ederef (Etempvar _y (tptr tint)) tint)
+  (Ebinop Oadd (Etempvar _a2 tint) (Econst_int (Int.repr 1) tint) tint)))(c2 := Sskip).
+  apply semax_later_trivial. store_tac. simpl. forward. entailer!.
+Qed.
+
+
+
+Definition f_swapif (s : statement) := {|
+  fn_return := tvoid;
+  fn_callconv := cc_default;
+  fn_params := ((_x, (tptr tint)) :: (_y, (tptr tint)) :: nil);
+  fn_vars := nil;
+  fn_temps := ((_a2, tint) :: (_b2, tint) :: nil);
+  fn_body := s
+|}.
+
+Lemma body_swapifsynthesis: exists s, semax_body Vprog Gprog (f_swapif s)  swapif_spec.
+Proof.
+  eexists. start_functionaux.
+  (*read a and b*)
+  (*read*)
+  eapply semax_seq' with (c1 := (Sset _a2 (Ederef (Etempvar _x (tptr tint)) tint))).
+  apply semax_later_trivial. load_tac. simpl. 
+  (*second read*)
+  eapply semax_seq' with (c1 := (Sset _b2 (Ederef (Etempvar _y (tptr tint)) tint))).
+  apply semax_later_trivial. load_tac. simpl.
+  (*if-else*)
+  apply semax_later_trivial. eapply semax_ifthenelse_PQR' with (b := (Ebinop Olt (Etempvar _a2 tint) (Etempvar _b2 tint) tint)).
+  simpl. reflexivity. entailer!. entailer!. 
+  (*semax_seq: both c1; c2*)
+  eapply semax_seq' with (c1 := (Sassign (Ederef (Etempvar _y (tptr tint)) tint) (Etempvar _a2 tint))).
+  apply semax_later_trivial. store_tac. simpl.
+  eapply semax_seq' with (c1 := (Sassign (Ederef (Etempvar _x (tptr tint)) tint) (Etempvar _b2 tint)))(c2 := Sskip).
+  apply semax_later_trivial. store_tac. simpl. forward.
+  (*prove entailment part*)
+  destruct (Z_lt_ge_dec a b) eqn:Hzlt. entailer!. entailer!.
+  (*false part*)
+  eapply semax_seq' with (c1 := (Sassign (Ederef (Etempvar _x (tptr tint)) tint) (Etempvar _b2 tint)))(c2 := Sskip).
+  apply semax_later_trivial. store_tac. simpl. forward.
+  destruct (Z_lt_ge_dec a b) eqn:Hzlt. entailer!. entailer!.
+Qed.
+
 
 
 
