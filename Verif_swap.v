@@ -1,11 +1,10 @@
 Require VC.Preface.  (* Check for the right version of VST *)
 
 Require Import VST.floyd.proofauto.
-Require Import VC.swap.
+Require Import LLMSynth.swap.
 Require Import VST.floyd.local2ptree_denote.
 Require Import VST.floyd.local2ptree_eval.
 Import compcert.lib.Maps.
-
 
 #[export] Instance CompSpecs : compspecs. make_compspecs prog. Defined.
 Definition Vprog : varspecs.  mk_varspecs prog. Defined. (*Global variable*)
@@ -20,7 +19,7 @@ Qed.
 
 (*emp*)
 Lemma prove_emp: emp |-- emp.
-Proof. auto. Qed. 
+Proof. auto. Qed.
 
 (*swap specification*)
 Definition swap_spec : ident * funspec :=
@@ -58,9 +57,9 @@ Definition swapskip_spec : ident * funspec :=
   ident * funspec: specification
 *)
 
-(*Read: introduce a new temp. variable; 
+(*Read: introduce a new temp. variable;
  semax Delta P c Q -> semax Delta P' c Q.
- P and Q: PROP, LOCAL and SEP; 
+ P and Q: PROP, LOCAL and SEP;
  Read: Add stuff to LOCAL*)
 
 Definition Gprog := [swapskip_spec; swap_spec].
@@ -72,7 +71,7 @@ Proof.
   unfold stackframe_of. simpl map. rewrite fold_right_nil.
   rewrite sepcon_emp.
   eapply semax_post. 5:{ eapply semax_skip. }
-  apply derives_ENTAIL. eapply drop_LOCAL'' with (n := O). eapply drop_LOCAL'' with (n := O). simpl. 
+  apply derives_ENTAIL. eapply drop_LOCAL'' with (n := O). eapply drop_LOCAL'' with (n := O). simpl.
   intros. entailer!.
   apply derives_ENTAIL.
   simpl. intros. entailer!.
@@ -86,7 +85,7 @@ Lemma body_swaplimltac: semax_body Vprog Gprog f_swap swap_spec.
     start_function. unfold POSTCONDITION. unfold abbreviate.
     eapply semax_seq'.
     (*first read*)
-    apply semax_later_trivial. 
+    apply semax_later_trivial.
     match goal with
     | |- semax ?Delta (|> (PROPx ?P (LOCALx ?Q (SEPx ?R)))) (Sset _ ?e) _ =>
      let T1 := fresh "T1" in evar (T1: PTree.t val);
@@ -98,9 +97,9 @@ Lemma body_swaplimltac: semax_body Vprog Gprog f_swap swap_spec.
      first [ load_tac_with_hint LOCAL2PTREE | load_tac_no_hint LOCAL2PTREE | SEP_type_contradict LOCAL2PTREE Delta e R | hint_msg LOCAL2PTREE Delta e];
      clear T1 T2 G LOCAL2PTREE
     end.
-    unfold MORE_COMMANDS. unfold abbreviate. 
+    unfold MORE_COMMANDS. unfold abbreviate.
     (*semax_seq -> read again*)
-    eapply semax_seq'. simpl. apply semax_later_trivial. 
+    eapply semax_seq'. simpl. apply semax_later_trivial.
     match goal with
     | |- semax ?Delta (|> (PROPx ?P (LOCALx ?Q (SEPx ?R)))) (Sset _ ?e) _ =>
      let T1 := fresh "T1" in evar (T1: PTree.t val);
@@ -114,7 +113,7 @@ Lemma body_swaplimltac: semax_body Vprog Gprog f_swap swap_spec.
     end.
     (*semax seq -> write*)
     eapply semax_seq'. simpl. apply semax_later_trivial.
-    (*store tac*) 
+    (*store tac*)
     match goal with
     | |- semax ?Delta (|> (PROPx ?P (LOCALx ?Q (SEPx ?R)))) (Sassign ?e1 ?e2) _ =>
      check_expression_by_value e1;
@@ -129,7 +128,7 @@ Lemma body_swaplimltac: semax_body Vprog Gprog f_swap swap_spec.
     end.
     (*skip and sequence and write*)
     apply semax_seq_skip.  eapply semax_seq'. simpl.
-    apply semax_later_trivial; 
+    apply semax_later_trivial;
     (*store tac*)
     match goal with
     | |- semax ?Delta (|> (PROPx ?P (LOCALx ?Q (SEPx ?R)))) (Sassign ?e1 ?e2) _ =>
@@ -148,7 +147,7 @@ Lemma body_swaplimltac: semax_body Vprog Gprog f_swap swap_spec.
     rewrite sepcon_emp. simpl.
     eapply semax_post. 5:{ eapply semax_skip. }
     apply derives_ENTAIL. eapply drop_LOCAL'' with (n := O). eapply drop_LOCAL'' with (n := O).
-    eapply drop_LOCAL'' with (n := O). eapply drop_LOCAL'' with (n := O). simpl. 
+    eapply drop_LOCAL'' with (n := O). eapply drop_LOCAL'' with (n := O). simpl.
     intros. entailer!.
     apply derives_ENTAIL.
     simpl. intros. entailer!.
@@ -164,33 +163,33 @@ Lemma body_swapnoltac: semax_body Vprog Gprog f_swap swap_spec.
     eapply semax_seq'.
      (*first read*)
     apply semax_later_trivial. load_tac.
-    unfold MORE_COMMANDS. unfold abbreviate. 
+    unfold MORE_COMMANDS. unfold abbreviate.
     (*semax_seq -> read again*)
     eapply semax_seq'. simpl. apply semax_later_trivial; load_tac.
     (*semax seq -> write*)
     eapply semax_seq'. simpl. apply semax_later_trivial; store_tac.
     (*read again*)
     apply semax_seq_skip.  eapply semax_seq'. simpl.
-    apply semax_later_trivial; store_tac. 
+    apply semax_later_trivial; store_tac.
     (*skip part*)
     unfold stackframe_of. simpl map. rewrite fold_right_nil.
     rewrite sepcon_emp. simpl.
     eapply semax_post. 5:{ eapply semax_skip. }
     apply derives_ENTAIL. eapply drop_LOCAL'' with (n := O). eapply drop_LOCAL'' with (n := O).
-    eapply drop_LOCAL'' with (n := O). eapply drop_LOCAL'' with (n := O). simpl. 
+    eapply drop_LOCAL'' with (n := O). eapply drop_LOCAL'' with (n := O). simpl.
     intros. entailer!.
     apply derives_ENTAIL.
     simpl. intros. entailer!.
     simpl. intros. entailer!. simpl. intros. entailer!.
    Qed.
- 
+
 (*explicit - forward.*)
 Lemma body_swapexplicit: semax_body Vprog Gprog f_swap swap_spec.
 Proof.
   start_function.
   assert (
   forall s,
-    (semax Delta 
+    (semax Delta
     (
       PROP ( )
       LOCAL (temp _a2 (Vint (Int.repr a));temp _x x; temp _y y)
@@ -198,8 +197,8 @@ Proof.
       data_at sh2 tint (Vint (Int.repr b)) y)
     )
     s
-    POSTCONDITION) -> 
-    (semax Delta 
+    POSTCONDITION) ->
+    (semax Delta
     (
       PROP ( )
       LOCAL (temp _x x; temp _y y)
@@ -215,7 +214,7 @@ Proof.
   (*second read*)
   assert (
     forall s,
-      (semax Delta 
+      (semax Delta
       (
         PROP ( )
         LOCAL (temp _b2 (Vint (Int.repr b));
@@ -224,8 +223,8 @@ Proof.
         data_at sh2 tint (Vint (Int.repr b)) y)
       )
       s
-      POSTCONDITION) -> 
-      (semax Delta 
+      POSTCONDITION) ->
+      (semax Delta
       (
         PROP ( )
         LOCAL (temp _a2 (Vint (Int.repr a));temp _x x; temp _y y)
@@ -241,7 +240,7 @@ Proof.
   (*write y: *)
   assert (
     forall s,
-      (semax Delta 
+      (semax Delta
       (
         PROP ( )
         LOCAL (temp _b2 (Vint (Int.repr b));
@@ -250,8 +249,8 @@ Proof.
         data_at sh2 tint (Vint (Int.repr a)) y)
       )
       s
-      POSTCONDITION) -> 
-      (semax Delta 
+      POSTCONDITION) ->
+      (semax Delta
       (
         PROP ( )
         LOCAL (temp _b2 (Vint (Int.repr b));
@@ -268,7 +267,7 @@ Proof.
   (*write x*)
   assert (
     forall s,
-      (semax Delta 
+      (semax Delta
       (
         PROP ( )
         LOCAL (temp _b2 (Vint (Int.repr b));
@@ -277,8 +276,8 @@ Proof.
         data_at sh2 tint (Vint (Int.repr a)) y)
       )
       s
-      POSTCONDITION) -> 
-      (semax Delta 
+      POSTCONDITION) ->
+      (semax Delta
       (
         PROP ( )
         LOCAL (temp _b2 (Vint (Int.repr b));
@@ -305,12 +304,12 @@ Definition f_swap (s : statement) := {|
   fn_body :=
           s
 |}.
-      
+
 (*constructing program on the fly*)
 Fixpoint constructstatement (l : list statement) : statement :=
   match l with
   | nil => Sskip
-  | h :: nil => h 
+  | h :: nil => h
   | h :: t => (Ssequence h (constructstatement t))
   end.
 
@@ -323,18 +322,18 @@ Lemma body_swapsynthesis: semax_body Vprog Gprog (f_swap Sskip)  swap_spec.
 
     (*go through series of semax Delta P statement P'; till semax Delta P' Sskip POSTC can be proved*)
     (*whole proof: synthesize + lemma with typeconext*)
-    assert (exists s, semax Delta 
+    assert (exists s, semax Delta
     (
       PROP ( )
       LOCAL (temp _x x; temp _y y)
       SEP (data_at sh1 tint (Vint (Int.repr a)) x;
       data_at sh2 tint (Vint (Int.repr b)) y)
     )
-    s 
+    s
     POSTCONDITION). {
-      eexists. 
+      eexists.
       (*read*)
-      eapply semax_seq' with (c1 := (Sset _a2 (Ederef (Etempvar _x (tptr tint)) tint))). 
+      eapply semax_seq' with (c1 := (Sset _a2 (Ederef (Etempvar _x (tptr tint)) tint))).
       apply semax_later_trivial. load_tac. simpl.
       (*second read*)
       eapply semax_seq' with (c1 := (Sset _b2 (Ederef (Etempvar _y (tptr tint)) tint))).
@@ -351,11 +350,10 @@ Lemma body_swapsynthesis: semax_body Vprog Gprog (f_swap Sskip)  swap_spec.
       rewrite sepcon_emp. simpl.
       eapply semax_post. 5:{ eapply semax_skip. }
       apply derives_ENTAIL. eapply drop_LOCAL'' with (n := O). eapply drop_LOCAL'' with (n := O).
-      eapply drop_LOCAL'' with (n := O). eapply drop_LOCAL'' with (n := O). simpl. 
+      eapply drop_LOCAL'' with (n := O). eapply drop_LOCAL'' with (n := O). simpl.
       intros. entailer!.
       apply derives_ENTAIL.
       simpl. intros. entailer!.
-      simpl. intros. entailer!. simpl. intros. entailer!. 
+      simpl. intros. entailer!. simpl. intros. entailer!.
     }
   Admitted.
-
