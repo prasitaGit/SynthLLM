@@ -78,10 +78,33 @@ Definition _a2 : ident := $"a2".
 Definition _b2 : ident := $"b2".
 Definition _main : ident := $"main".
 Definition _swap : ident := $"swap".
+Definition _swapif : ident := $"swapif".
+Definition _swapmath : ident := $"swapmath".
+Definition _swapskip : ident := $"swapskip".
 Definition _x : ident := $"x".
 Definition _y : ident := $"y".
 
+Definition f_swapskip := {|
+  fn_return := tvoid;
+  fn_callconv := cc_default;
+  fn_params := ((_x, (tptr tint)) :: (_y, (tptr tint)) :: nil);
+  fn_vars := nil;
+  fn_temps := nil;
+  fn_body :=
+Sskip
+|}.
+
 Definition f_swap := {|
+  fn_return := tvoid;
+  fn_callconv := cc_default;
+  fn_params := ((_x, (tptr tint)) :: (_y, (tptr tint)) :: nil);
+  fn_vars := nil;
+  fn_temps := nil;
+  fn_body :=
+Sskip
+|}.
+
+Definition f_swapmath := {|
   fn_return := tvoid;
   fn_callconv := cc_default;
   fn_params := ((_x, (tptr tint)) :: (_y, (tptr tint)) :: nil);
@@ -92,8 +115,25 @@ Definition f_swap := {|
   (Sset _a2 (Ederef (Etempvar _x (tptr tint)) tint))
   (Ssequence
     (Sset _b2 (Ederef (Etempvar _y (tptr tint)) tint))
-    (Ssequence
-      (Sassign (Ederef (Etempvar _y (tptr tint)) tint) (Etempvar _a2 tint))
+    (Sassign (Ederef (Etempvar _y (tptr tint)) tint)
+      (Ebinop Oadd (Etempvar _a2 tint) (Econst_int (Int.repr 1) tint) tint))))
+|}.
+
+Definition f_swapif := {|
+  fn_return := tvoid;
+  fn_callconv := cc_default;
+  fn_params := ((_x, (tptr tint)) :: (_y, (tptr tint)) :: nil);
+  fn_vars := nil;
+  fn_temps := ((_a2, tint) :: (_b2, tint) :: nil);
+  fn_body :=
+(Ssequence
+  (Sset _a2 (Ederef (Etempvar _x (tptr tint)) tint))
+  (Ssequence
+    (Sset _b2 (Ederef (Etempvar _y (tptr tint)) tint))
+    (Sifthenelse (Ebinop Olt (Etempvar _a2 tint) (Etempvar _b2 tint) tint)
+      (Ssequence
+        (Sassign (Ederef (Etempvar _y (tptr tint)) tint) (Etempvar _a2 tint))
+        (Sassign (Ederef (Etempvar _x (tptr tint)) tint) (Etempvar _b2 tint)))
       (Sassign (Ederef (Etempvar _x (tptr tint)) tint) (Etempvar _b2 tint)))))
 |}.
 
@@ -359,28 +399,30 @@ Definition global_definitions : list (ident * globdef fundef type) :=
                      {|cc_vararg:=(Some 1); cc_unproto:=false; cc_structret:=false|}))
      (Tcons tint Tnil) tvoid
      {|cc_vararg:=(Some 1); cc_unproto:=false; cc_structret:=false|})) ::
- (_swap, Gfun(Internal f_swap)) :: nil).
+ (_swapskip, Gfun(Internal f_swapskip)) :: (_swap, Gfun(Internal f_swap)) ::
+ (_swapmath, Gfun(Internal f_swapmath)) ::
+ (_swapif, Gfun(Internal f_swapif)) :: nil).
 
 Definition public_idents : list ident :=
-(_swap :: ___builtin_debug :: ___builtin_fmin :: ___builtin_fmax ::
- ___builtin_fnmsub :: ___builtin_fnmadd :: ___builtin_fmsub ::
- ___builtin_fmadd :: ___builtin_clsll :: ___builtin_clsl :: ___builtin_cls ::
- ___builtin_fence :: ___builtin_expect :: ___builtin_unreachable ::
- ___builtin_va_end :: ___builtin_va_copy :: ___builtin_va_arg ::
- ___builtin_va_start :: ___builtin_membar :: ___builtin_annot_intval ::
- ___builtin_annot :: ___builtin_sel :: ___builtin_memcpy_aligned ::
- ___builtin_sqrt :: ___builtin_fsqrt :: ___builtin_fabsf ::
- ___builtin_fabs :: ___builtin_ctzll :: ___builtin_ctzl :: ___builtin_ctz ::
- ___builtin_clzll :: ___builtin_clzl :: ___builtin_clz ::
- ___builtin_bswap16 :: ___builtin_bswap32 :: ___builtin_bswap ::
- ___builtin_bswap64 :: ___compcert_i64_umulh :: ___compcert_i64_smulh ::
- ___compcert_i64_sar :: ___compcert_i64_shr :: ___compcert_i64_shl ::
- ___compcert_i64_umod :: ___compcert_i64_smod :: ___compcert_i64_udiv ::
- ___compcert_i64_sdiv :: ___compcert_i64_utof :: ___compcert_i64_stof ::
- ___compcert_i64_utod :: ___compcert_i64_stod :: ___compcert_i64_dtou ::
- ___compcert_i64_dtos :: ___compcert_va_composite ::
- ___compcert_va_float64 :: ___compcert_va_int64 :: ___compcert_va_int32 ::
- nil).
+(_swapif :: _swapmath :: _swap :: _swapskip :: ___builtin_debug ::
+ ___builtin_fmin :: ___builtin_fmax :: ___builtin_fnmsub ::
+ ___builtin_fnmadd :: ___builtin_fmsub :: ___builtin_fmadd ::
+ ___builtin_clsll :: ___builtin_clsl :: ___builtin_cls :: ___builtin_fence ::
+ ___builtin_expect :: ___builtin_unreachable :: ___builtin_va_end ::
+ ___builtin_va_copy :: ___builtin_va_arg :: ___builtin_va_start ::
+ ___builtin_membar :: ___builtin_annot_intval :: ___builtin_annot ::
+ ___builtin_sel :: ___builtin_memcpy_aligned :: ___builtin_sqrt ::
+ ___builtin_fsqrt :: ___builtin_fabsf :: ___builtin_fabs ::
+ ___builtin_ctzll :: ___builtin_ctzl :: ___builtin_ctz :: ___builtin_clzll ::
+ ___builtin_clzl :: ___builtin_clz :: ___builtin_bswap16 ::
+ ___builtin_bswap32 :: ___builtin_bswap :: ___builtin_bswap64 ::
+ ___compcert_i64_umulh :: ___compcert_i64_smulh :: ___compcert_i64_sar ::
+ ___compcert_i64_shr :: ___compcert_i64_shl :: ___compcert_i64_umod ::
+ ___compcert_i64_smod :: ___compcert_i64_udiv :: ___compcert_i64_sdiv ::
+ ___compcert_i64_utof :: ___compcert_i64_stof :: ___compcert_i64_utod ::
+ ___compcert_i64_stod :: ___compcert_i64_dtou :: ___compcert_i64_dtos ::
+ ___compcert_va_composite :: ___compcert_va_float64 ::
+ ___compcert_va_int64 :: ___compcert_va_int32 :: nil).
 
 Definition prog : Clight.program := 
   mkprogram composites global_definitions public_idents _main Logic.I.
