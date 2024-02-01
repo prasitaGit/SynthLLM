@@ -1,0 +1,4 @@
+swapYwithAdd (1 try only)
+
+Please enter your specification in separation logic format: (Pre-condition)function name(Post-condition), otherwise Quit:  {x |-> a * y |-> b}void swaponlyYwithAdd(int* x, int* y){ x |-> a * y |-> (a + 3)}            
+Please enter your specification in separation logic format: (Pre-condition)function name(Post-condition), otherwise Quit: Quit

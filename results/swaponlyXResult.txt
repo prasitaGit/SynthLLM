@@ -1,0 +1,5 @@
+onlyX result:
+1 try needed
+
+Please enter your specification in separation logic format: (Pre-condition)function name(Post-condition), otherwise Quit: {x |-> a * y |-> b}void swaponlyX(int* x, int* y){ x |-> b * y |-> b}
+Please enter your specification in separation logic format: (Pre-condition)function name(Post-condition), otherwise Quit: Quit

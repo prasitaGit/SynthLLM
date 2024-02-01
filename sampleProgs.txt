@@ -1,0 +1,9 @@
+Text file for sample programs - no loops/recursion yet
+Add a number with swap
+{x |-> a * y |-> b}void swapadd(int* x, int* y){ x |-> (b + 1) * y |-> (a + 2)}
+Swap only x
+{x |-> a * y |-> b}void swaponlyX(int* x, int* y){ x |-> b * y |-> b}
+Swap only y with operation
+{x |-> a * y |-> b}void swaponlyYwithAdd(int* x, int* y){ x |-> a * y |-> (a * 3)}
+Swap normally if x < y, otherwise swap and increment 5 to both
+{x |-> a * y |-> b}void swapIf(int* x, int* y){if x < y then x |-> b * y |-> a else x |-> b + 5 * y |-> a + 5}

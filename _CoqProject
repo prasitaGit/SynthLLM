@@ -1,4 +1,4 @@
--Q ../vc VC
+-Q /Users/prasitamukherjee/Downloads/vc VC
 -Q . LLMSynth
-swap.v
-Verif_swap.v
+proggen.v
+Verif_proggen.v

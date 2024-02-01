@@ -1,0 +1,29 @@
+Same number of tries (4) for both Haore and Expected post-condition
+
+Hoare-Style:
+
+Please enter your specification in separation logic format: (Pre-condition)function name(Post-condition), otherwise Quit: {x |-> a * y |-> b}void swapadd(int* x, int* y){ x |-> (b + 1) * y |-> (a + 2)}
+
+Please enter your specification in separation logic format: (Pre-condition)function name(Post-condition), otherwise Quit: Incorrect program. Generated: {x |-> a * y |-> b}void swapadd(int* x, int* y){ x |-> (b + 2) * y |-> (b + 1)}  but expected: {x |-> a * y |-> b}void swapadd(int* x, int* y){ x |-> (b + 1) * y |-> (a + 2)}.  Please regenerate {x |-> a * y |-> b}void swapadd(int* x, int* y){ x |-> (b + 1) * y |-> (a + 2)}  with the above information.
+
+Please enter your specification in separation logic format: (Pre-condition)function name(Post-condition), otherwise Quit: Incorrect program. Generated: {x |-> a * y |-> b}void swapadd(int* x, int* y){ x |-> (b + 1) * y |-> (b - 1)}  but expected: {x |-> a * y |-> b}void swapadd(int* x, int* y){ x |-> (b + 1) * y |-> (a + 2)}.  Please regenerate {x |-> a * y |-> b}void swapadd(int* x, int* y){ x |-> (b + 1) * y |-> (a + 2)}  with the above information.
+
+Please enter your specification in separation logic format: (Pre-condition)function name(Post-condition), otherwise Quit: Incorrect program. Generated: {x |-> a * y |-> b}void swapadd(int* x, int* y){ x |-> (b + 1) * y |-> (b - 1)}  but expected: {x |-> a * y |-> b}void swapadd(int* x, int* y){ x |-> (b + 1) * y |-> (a + 2)}.  Please regenerate {x |-> a * y |-> b}void swapadd(int* x, int* y){ x |-> (b + 1) * y |-> (a + 2)}  with the above information.
+
+Please enter your specification in separation logic format: (Pre-condition)function name(Post-condition), otherwise Quit: Quit
+
+----------------------------------------------------------------------------------
+
+Expected post-condition tries:
+
+Please enter your specification in separation logic format: (Pre-condition)function name(Post-condition), otherwise Quit: {x |-> a * y |-> b}void swapadd(int* x, int* y){ x |-> (b + 1) * y |-> (a + 2)}
+
+Please enter your specification in separation logic format: (Pre-condition)function name(Post-condition), otherwise Quit:Incorrect output. Expected postcondition { x |-> (b + 1) * y |-> (a + 2)}, post-condition generated: {x |-> (b + 2) * y |-> (b + 1)}. Please regenerate {x |-> a * y |-> b}void swapadd(int* x, int* y){ x |-> (b + 1) * y |-> (a + 2)}
+
+Please enter your specification in separation logic format: (Pre-condition)function name(Post-condition), otherwise Quit: 
+Expected postcondition: {x |-> (b + 1) * y |-> (a + 2)}, post-condition generated: {x |-> (a + 1) * y |-> (b + 2)}. Please regenerate {x |-> a * y |-> b}void swapadd(int* x, int* y){ x |-> (b + 1) * y |-> (a + 2)} with the above information
+
+Please enter your specification in separation logic format: (Pre-condition)function name(Post-condition), otherwise Quit: Incorrect program. Expected postcondition: {x |-> (b + 1) * y |->  (a + 2)}, post-condition generated: {x |-> (b + 1) * y|-> (b + 3)}. 
+Please re-generate {x |-> a * y |-> b}void swapadd(int* x, int* y){ x |-> (b + 1) * y |-> (a + 2)} with the above information.
+
+Please enter your specification in separation logic format: (Pre-condition)function name(Post-condition), otherwise Quit: Quit

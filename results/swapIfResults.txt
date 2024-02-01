@@ -1,0 +1,36 @@
+swapIf tries:
+
+Postcondition only (2nd try):
+
+Please enter your specification in separation logic format: (Pre-condition)function name(Post-condition), otherwise Quit: {x |-> a * y |-> b}void swapIf(int* x, int* y){if x < y then x |-> b * y |-> a else x |-> b + 5 * y |-> a + 5}
+
+Please enter your specification in separation logic format: (Pre-condition)function name(Post-condition), otherwise Quit: Incorrect program. Expected postcondition {if x < y then x |-> b * y |-> a else x |-> b + 5 * y |-> a + 5}, post-condition generated: {if x < y then x |-> b * y |-> a else x |-> a + 5 * y |-> b + 5},. Please regenerate {x |-> a * y |-> b}void swapIf(int* x, int* y){if x < y then x |-> b * y |-> a else x |-> b + 5 * y |-> a + 5} with the above information
+
+Please enter your specification in separation logic format: (Pre-condition)function name(Post-condition), otherwise Quit: Quit
+
+----------------------------------------------------------------------------------
+
+Hoare style (different seed: 1235) (9 tries)
+
+Please enter your specification in separation logic format: (Pre-condition)function name(Post-condition), otherwise Quit: {x |-> a * y |-> b}void swapIf(int* x, int* y){if x < y then x |-> b * y |-> a else x |-> b + 5 * y |-> a + 5}
+
+Please enter your specification in separation logic format: (Pre-condition)function name(Post-condition), otherwise Quit: Generated:{x |-> a * y |-> b}void swapIf(int* x, int* y){if x < y then x |-> b * y |-> a else x |-> a + 5 * y |-> b + 5}
+ but expected:{x |-> a * y |-> b}void swapIf(int* x, int* y){if x < y then x |-> b * y |-> a else x |-> b + 5 * y |-> a + 5}.
+  Please regenerate{x |-> a * y |-> b}void swapIf(int* x, int* y){if x < y then x |-> b * y |-> a else x |-> b + 5 * y |-> a + 5}
+  with the above information.
+
+ Please enter your specification in separation logic format: (Pre-condition)function name(Post-condition), otherwise Quit: Generated:{x |-> a * y |-> b}void swapIf(int* x, int* y){if x < y then x |-> b * y |-> a else x |-> b + 5 * y |-> b} but expected:{x |-> a * y |-> b}void swapIf(int* x, int* y){if x < y then x |-> b * y |-> a else x |-> b + 5 * y |-> a + 5}. Please regenerate{x |-> a * y |-> b}void swapIf(int* x, int* y){if x < y then x |-> b * y |-> a else x |-> b + 5 * y |-> a + 5} with the above information.
+
+Please enter your specification in separation logic format: (Pre-condition)function name(Post-condition), otherwise Quit: Generated:{x |-> a * y |-> b}void swapIf(int* x, int* y){if x < y then x |-> b * y |-> a else x |-> b + 5 * y |-> b + 10} but expected:{x |-> a * y |-> b}void swapIf(int* x, int* y){if x < y then x |-> b * y |-> a else x |-> b + 5 * y |-> a + 5}. Please regenerate{x |-> a * y |-> b}void swapIf(int* x, int* y){if x < y then x |-> b * y |-> a else x |-> b + 5 * y |-> a + 5} with the above information.
+
+Please enter your specification in separation logic format: (Pre-condition)function name(Post-condition), otherwise Quit: Generated:{x |-> a * y |-> b}void swapIf(int* x, int* y){if x < y then x |-> b * y |-> a else x |-> b + 5 * y |-> b + 10} but expected:{x |-> a * y |-> b}void swapIf(int* x, int* y){if x < y then x |-> b * y |-> a else x |-> b + 5 * y |-> a + 5}. Please regenerate{x |-> a * y |-> b}void swapIf(int* x, int* y){if x < y then x |-> b * y |-> a else x |-> b + 5 * y |-> a + 5} with the above information.
+
+Please enter your specification in separation logic format: (Pre-condition)function name(Post-condition), otherwise Quit: Generated:{x |-> a * y |-> b}void swapIf(int* x, int* y){if x < y then x |-> a * y |-> b else x |-> b + 5 * y |-> b} but expected:{x |-> a * y |-> b}void swapIf(int* x, int* y){if x < y then x |-> b * y |-> a else x |-> b + 5 * y |-> a + 5}. Please regenerate{x |-> a * y |-> b}void swapIf(int* x, int* y){if x < y then x |-> b * y |-> a else x |-> b + 5 * y |-> a + 5} with the above information.
+
+Please enter your specification in separation logic format: (Pre-condition)function name(Post-condition), otherwise Quit: Generated:{x |-> a * y |-> b}void swapIf(int* x, int* y){if x < y then x |-> b * y |-> a else x |-> a + 5 * y |-> b + 5} but expected:{x |-> a * y |-> b}void swapIf(int* x, int* y){if x < y then x |-> b * y |-> a else x |-> b + 5 * y |-> a + 5}. Please regenerate{x |-> a * y |-> b}void swapIf(int* x, int* y){if x < y then x |-> b * y |-> a else x |-> b + 5 * y |-> a + 5} with the above information.
+
+Please enter your specification in separation logic format: (Pre-condition)function name(Post-condition), otherwise Quit: Generated:{x |-> a * y |-> b}void swapIf(int* x, int* y){if x < y then x |-> b * y |-> b else x |-> a + 5 * y |-> b + 5} but expected:{x |-> a * y |-> b}void swapIf(int* x, int* y){if x < y then x |-> b * y |-> a else x |-> b + 5 * y |-> a + 5}. Please regenerate{x |-> a * y |-> b}void swapIf(int* x, int* y){if x < y then x |-> b * y |-> a else x |-> b + 5 * y |-> a + 5} with the above information.
+
+Please enter your specification in separation logic format: (Pre-condition)function name(Post-condition), otherwise Quit: Generated:{x |-> a * y |-> b}void swapIf(int* x, int* y){if x < y then x |-> b * y |-> a else x |-> a + 5 * y |-> b + 5} but expected:{x |-> a * y |-> b}void swapIf(int* x, int* y){if x < y then x |-> b * y |-> a else x |-> b + 5 * y |-> a + 5}. Please regenerate{x |-> a * y |-> b}void swapIf(int* x, int* y){if x < y then x |-> b * y |-> a else x |-> b + 5 * y |-> a + 5} with the above information.
+
+Please enter your specification in separation logic format: (Pre-condition)function name(Post-condition), otherwise Quit: Quit
