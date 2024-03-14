@@ -16,3 +16,5 @@ machine.
 - Compile any C-files you want to verify, e.g. `clightgen -normalize swap.c`
 
 - Step through Verif_swap.v
+
+- Results on LLMs: https://docs.google.com/document/d/1BxwtcKKPPoRXTg82FNXsqUh1dizimIYenwPCrFgU_Ds/edit?usp=sharing
