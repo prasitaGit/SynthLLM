@@ -17,4 +17,5 @@ machine.
 
 - Step through Verif_swap.v
 
-- Results on LLMs: https://docs.google.com/document/d/1BxwtcKKPPoRXTg82FNXsqUh1dizimIYenwPCrFgU_Ds/edit?usp=sharing
+- Results on LLMs (MBP benchmark): https://docs.google.com/document/d/1BxwtcKKPPoRXTg82FNXsqUh1dizimIYenwPCrFgU_Ds/edit?usp=sharing
+- Results on LLMs (SUSLik benchmark): https://docs.google.com/document/d/15V879SO9ZkKpROnPafEMCnP3nvfJLELFWBjAmNOcwRc/edit?usp=sharing
