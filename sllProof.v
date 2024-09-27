@@ -19,9 +19,18 @@ Fixpoint listrep (sigma: list Z) (p: val) : mpred :=
     !! (p = nullval) && emp
  end.
 
+
  (*sllbox - pointer to a list*)
  Definition sllbox_rep (t: list Z) (b: val) :=
  EX p: val, data_at Tsh (tptr t_list) p b * listrep t p.
+
+ (*lseg to describe list segment *) 
+ Fixpoint lseg (contents: list Z) (x z: val) : mpred :=
+  match contents with
+  | nil => !! (x = z) && emp
+  | h::hs => EX y:val, !! (Int.min_signed <= h <= Int.max_signed) && 
+             data_at Tsh t_list (Vint (Int.repr h), y) x * lseg hs y z
+  end.
 
 Lemma listrep_local_facts:
  forall sigma p,
@@ -32,7 +41,7 @@ Proof.
  unfold listrep; fold listrep. entailer!!. 
  split; intros; reflexivity. 
  unfold listrep; fold listrep. entailer.
- entailer!. split; intro. subst.
+ entailer!. split; intro. subst. 
  eapply field_compatible_nullval; eauto. inversion H3.
 Qed.
 
@@ -55,7 +64,6 @@ Proof.
  unfold listrep.
  destruct sigma; simpl.
 - 
-  hint.
   entailer!.
 - (**  The cons case *)
   Intros y.
@@ -88,6 +96,65 @@ Proof.
   entailer. unfold listrep at 2; fold listrep. Exists y. entailer!.
 Qed. 
 
+Lemma listrep_null_length: forall contents x,
+  Zlength contents = 0 ->
+  listrep contents x = !! (x = nullval) && !! (contents=nil) && emp.
+Proof.
+  intros. apply Zlength_nil_inv in H. subst.
+  apply pred_ext.  entailer. simpl. entailer!!.
+Qed.
+
+Lemma listrep_nonnull_length: forall contents x,
+  Zlength contents > 0 ->
+  listrep contents x =
+    EX h: Z, EX hs: list Z, EX y:val,
+      !! (contents = h :: hs) && !! (Int.min_signed <= h <= Int.max_signed) && 
+      data_at Tsh t_list (Vint (Int.repr h), y) x * listrep hs y.
+Proof.
+  intros. apply pred_ext. entailer. destruct contents eqn:Hcon. inversion H. 
+  unfold listrep at 1; fold listrep.  Intros y. Exists z l y. entailer!!.
+  Intros h hs y. subst. unfold listrep at 2; fold listrep. Exists y. entailer!!.
+Qed.
+
+
+(*singleton proof*)
+Lemma singleton_lseg: forall (a: Z) (x y: val),
+(Int.min_signed <= a <= Int.max_signed) -> 
+lseg [a] x y = data_at Tsh t_list (Vint (Int.repr a), y) x.
+Proof. 
+  intros. apply pred_ext.
+  unfold lseg; fold lseg. entailer!!.  
+  unfold lseg; fold lseg. Exists y. entailer!!.
+Qed.
+
+Lemma lseg_app: forall (s1 : list Z) (b : Z) (x u: val),
+(Int.min_signed <= b <= Int.max_signed) ->
+lseg (s1 ++ [b]) x u = EX t: val, lseg s1 x t * data_at Tsh t_list (Vint (Int.repr b), u) t.
+Proof.
+induction s1; intros; apply pred_ext. 
+(*nil*)
+simpl. Intros t. subst. Exists x. entailer!!. 
+(*nil reverse*)
+Intros y. simpl. Exists u. entailer!!. 
+(*non nil simpl*)
+rewrite <- app_comm_cons. unfold lseg at 1; fold lseg. 
+Intros y. rewrite (IHs1 b y u). Intros t. Exists t. entailer!. 
+simpl. Exists y. entailer!!. assumption. Intros t. rewrite <- app_comm_cons. 
+unfold lseg at 1; fold lseg.  Intros y. simpl. Exists y. entailer!!. rewrite (IHs1 b y u). 
+Exists t. entailer!!. assumption.
+Qed.
+
+Lemma lseg_listrep_equivalence: forall l p, 
+lseg l p nullval = listrep l p.
+Proof.
+  induction l; intros. 
+  simpl. reflexivity. 
+  apply pred_ext. simpl. Intros y. Exists y. entailer!!.  
+  rewrite (IHl y). entailer!!. 
+  simpl. Intros y. Exists y. entailer!!. 
+  rewrite (IHl y). entailer!!. 
+Qed.
+
 Lemma nullContradiction: forall sh t v, data_at sh t v nullval = FF. 
 Proof.
   intros; apply pred_ext; entailer. 
@@ -95,7 +162,6 @@ Proof.
 Qed.
 
 (*Trees*)
-
 Fixpoint tree_rep (t: tree) (p: val) : mpred :=
  match t with
  | E => !!(p=nullval) && emp

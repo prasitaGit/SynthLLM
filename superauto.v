@@ -3,7 +3,7 @@ Require Import VST.floyd.proofauto.
 Require Import LLMSynth.sllProof.
 Require Import LLMSynth.treelistdef.
 Require Import LLMSynth.bstFunctionalProofs.
-
+Require Import LLMSynth.mapListToIndex.
 (*queried ltac: first stage*)
 (*
 Dealing with the comparison operators: =, <>, <, >, <=, >=,
@@ -18,7 +18,6 @@ C programs recognized by verified compiler Compcert
 Notation "'unfolded' d" :=
   ltac:(let y := eval unfold d in d in exact y) (at level 100, only parsing).
 
-
 Lemma proj_sumbool_false:
   forall (P Q: Prop) (a: {P}+{Q}), proj_sumbool a = false -> Q.
 Proof.
@@ -28,6 +27,49 @@ Qed.
 Lemma forceval_cast: forall b, force_val (sem_cast_i2bool (bool2val b)) = bool2val b. 
 Proof.
   destruct b; simpl; reflexivity.
+Qed.
+
+Lemma modu_repr : forall a b, 0 <= a <= Int.max_unsigned -> 0 < b <= Int.max_unsigned ->
+  Int.modu (Int.repr a) (Int.repr b) = Int.repr (a mod b).
+Proof.
+  intros.
+  unfold Int.modu. rewrite !Int.unsigned_repr by rep_lia. reflexivity.
+Qed.
+
+Lemma nModulom: forall n m: Z, m > 0 -> -m < Z.modulo n m < m.
+Proof.
+  intros. assert (0 < m) by lia.
+  assert (m <> 0) by lia.
+  generalize (Z.div_eucl_eq n m H1) (Z.mod_pos_bound n m) (Z.mod_neg_bound n m). 
+  unfold Z.modulo. destruct Z.div_eucl. intros. lia.
+Qed.
+
+Lemma nmodulomRange: forall n m:Z, 0 < m <= Int.max_signed -> 
+-m < Z.modulo n m < m -> Int.min_signed <= Z.modulo n m <= Int.max_signed.
+Proof.
+  intros. destruct H0. split. assert (Int.min_signed <= -m) by rep_lia. lia. lia.
+Qed. 
+
+Lemma repr_byte_signed:
+  forall i j,
+    Byte.min_signed <= i <= Byte.max_signed -> 
+    Byte.min_signed <= j <= Byte.max_signed -> 
+    Byte.repr i = Byte.repr j -> i=j.
+Proof.
+intros.
+rewrite <- (Byte.signed_repr i) by rep_lia.
+rewrite <- (Byte.signed_repr j) by rep_lia.
+congruence.
+Qed.
+
+Lemma repr_byte_neq_e:
+ forall i j, Byte.repr i <> Byte.repr j -> i <> j.
+Proof. intros. contradict H. subst. auto. Qed.
+
+Lemma byteZRelation: forall k: Z, Byte.min_signed <= k <= Byte.max_signed -> 
+Int.min_signed <= k <= Int.max_signed.
+Proof.
+    intros. rep_lia.
 Qed.
 
 Lemma modus_ponens_wand' {A}{ND: NatDed A}{SL: SepLog A}:
@@ -59,24 +101,33 @@ Ltac unifyRight H g :=
   repeat match goal with
   | [ H' : ?h |- g ] => progress (tryif (unify H h) then right; assumption else idtac )
   end. 
-
+  
 (*analyze fail forward wrt Int.repr: *)
 Ltac failForward g :=
   match goal with
+  | [X: Int.repr _ = Int.mone |- g] => inversion X
+  | [X: true = false |- g] => inversion X
+  | [X: false = true |- g] => inversion X
+  | [X: False |- g] => inversion X
   | [X: Int.repr _ <> Int.repr _ |- g] =>  apply repr_neq_e in X; failForward g
-  | [X: Int.repr ?a = Int.repr _ |- g] =>  (tryif (assert (repable_signed a) by first[list_solve | rep_lia]) then clearMatch (repable_signed a); apply repr_inj_signed in X else apply repr_inj_unsigned in X); 
-                                           try solve[rep_lia | list_solve]; failForward g
+  | [X: Int.repr (Z.modulo _ _) = Int.repr _ |- g] => apply repr_inj_signed in X; 
+                                                [ | unfold repable_signed; apply nmodulomRange; [first[rep_lia | list_solve] | apply nModulom; first[rep_lia | list_solve]] | first[rep_lia | list_solve]]; failForward g
+  | [X: Int.repr ?a = Int.repr _ |- g] =>  (tryif (assert (repable_signed a) by first[list_solve | rep_lia | unfold repable_signed; apply byteZRelation; first[rep_lia | list_solve]]) 
+                                           then clearMatch (repable_signed a); apply repr_inj_signed in X else apply repr_inj_unsigned in X); 
+                                           try solve[rep_lia | list_solve | unfold repable_signed; apply byteZRelation; first[rep_lia | list_solve]]; failForward g
   | [X: Int.repr ?a = Int.add (Int.repr _) (Int.repr _) |- g] => rewrite add_repr in X; failForward g
   | [X: Int.repr ?a = Int.sub (Int.repr _) (Int.repr _) |- g] => rewrite sub_repr in X; failForward g
   | [X: Int.repr ?a = Int.mul (Int.repr _) (Int.repr _) |- g] => rewrite mul_repr in X; failForward g
   | [X: Int.repr _ <> Int.add (Int.repr _) (Int.repr _) |- g] => rewrite add_repr in X; apply repr_neq_e in X; failForward g
   | [X: Int.repr _ <> Int.sub (Int.repr _) (Int.repr _) |- g] => rewrite sub_repr in X; apply repr_neq_e in X; failForward g
   | [X: Int.repr _ <> Int.mul (Int.repr _) (Int.repr _) |- g] => rewrite mul_repr in X; apply repr_neq_e in X; failForward g
-  | [X: _ /\ Int.repr _ = Int.mone |- g] => destruct X; failForward g
-  | [X: Int.repr _ = Int.mone /\ _ |- g] =>  destruct X; failForward g
+  (*| [X: _ /\ Int.repr _ = Int.mone |- g] => destruct X; failForward g
+  | [X: Int.repr _ = Int.mone /\ _ |- g] =>  destruct X; failForward g *)
   | [X: ?h |- g] => match h with 
-                    | context [Int.signed (Int.repr _)] => rewrite !Int.signed_repr in X by first[list_solve | rep_lia] ; failForward g
+                    | context [Int.signed (Int.repr _)] => rewrite !Int.signed_repr in X by first[list_solve | rep_lia | apply byteZRelation; first[rep_lia | list_solve]] ; failForward g
                     | context [Int.unsigned (Int.repr _)] => rewrite !Int.unsigned_repr in X by first[list_solve | rep_lia] ; failForward g
+                    | context [Int.mods (Int.repr _) (Int.repr _)] => rewrite mods_repr in X by first[rep_lia | list_solve]; failForward g 
+                    | context [Int.modu (Int.repr _) (Int.repr _)] => rewrite modu_repr in X by first[rep_lia | list_solve]; failForward g 
                     end
   | [X: ?t = false |- g] => match t with 
                             | context[zeq _ _] => apply proj_sumbool_false in X; failForward g
@@ -88,15 +139,13 @@ Ltac failForward g :=
                            | context[zle _ _] => apply proj_sumbool_true in X; failForward g
                            | context[zlt _ _] => apply proj_sumbool_true in X; failForward g
                            end 
-  | [X: Int.repr _ = Int.mone |- g] => inversion X
   | [X: Int.repr _ = Int.repr _ |- g] => inversion X 
   | [X: Int.repr _ = _ |- g] => inversion X 
-  | [X: true = false |- g] => inversion X
-  | [X: false = true |- g] => inversion X
-  | [X: False |- g] => inversion X
-  | [X: _ <> _ |- g] => inversion X
-  | [X: _ |- g] => idtac g
-  | [X: _ |- ?g'] => idtac g'
+  | [X: context[Znth ?i ?l] |- g] => tryif (assert (i < 0) by lia) then first [rewrite Znth_underflow in X by lia; list_solve | inversion X | idtac] 
+                                     else (tryif (assert (i >= (Zlength l)) by lia) then first [rewrite Znth_overflow in X by lia; list_solve | inversion X | idtac] else idtac)
+  | [X: _ <> _ |- g] => try (inversion X)
+  | [X: _ |- g] => idtac 
+  | [X: _ |- ?g'] => idtac
   end.
 
 Ltac matchTreeAndSubstitute := 
@@ -121,8 +170,9 @@ Ltac rewriteWrapperInGoal :=
   match goal with 
   | |- ?g => match g with 
              | context[Int.unsigned (Int.repr _)] => rewrite !Int.unsigned_repr by first[rep_lia | list_solve]
-             | context[Int.signed (Int.repr _)] => rewrite !Int.signed_repr by first[rep_lia | list_solve]
-             | _ => idtac g
+             | context[Int.signed (Int.repr _)] => rewrite !Int.signed_repr by first[rep_lia | list_solve | apply byteZRelation; first[rep_lia | list_solve]]
+             | context[generate_list _] => try rewrite generateFirstNNil by rep_lia 
+             | _ => idtac
              end
   end.
 
@@ -156,8 +206,10 @@ Ltac matchModulo a b Op o g :=
   match goal with
   | [X: ?o' (Int.repr (Z.modulo a b)) (Int.repr o) |- g] => checkOperatorDischarge2 Op (Z.modulo a b) o g
   | [X: not (?o' (Int.repr (Z.modulo a b)) (Int.repr o)) |- g] => checkOperatorDischarge2 Op (Z.modulo a b) o g
-  | [X: ?o' (Int.mods (Int.repr a) (Int.repr b)) (Int.repr o) |- g] => rewrite mods_repr in X; try rep_lia; apply repr_inj_signed in X; try rep_lia; checkOperatorDischarge2 Op (Z.modulo a b) o g
-  | [X: not (?o' (Int.mods (Int.repr a) (Int.repr b)) (Int.repr o)) |- g] => rewrite mods_repr in X; try rep_lia; apply repr_neq_e in X; checkOperatorDischarge2 Op (Z.modulo a b) o g
+  | [X: ?o' (Int.mods (Int.repr a) (Int.repr b)) (Int.repr o) |- g] => rewrite mods_repr in X; try first[rep_lia | list_solve]; apply repr_inj_signed in X; try rep_lia; checkOperatorDischarge2 Op (Z.modulo a b) o g
+  | [X: not (?o' (Int.mods (Int.repr a) (Int.repr b)) (Int.repr o)) |- g] => rewrite mods_repr in X; try first[rep_lia | list_solve]; apply repr_neq_e in X; checkOperatorDischarge2 Op (Z.modulo a b) o g
+  | [X: ?o' (Int.modu (Int.repr a) (Int.repr b)) (Int.repr o) |- g] => rewrite modu_repr in X; try first[rep_lia | list_solve]; apply repr_inj_signed in X; try rep_lia; checkOperatorDischarge2 Op (Z.modulo a b) o g
+  | [X: not (?o' (Int.modu (Int.repr a) (Int.repr b)) (Int.repr o)) |- g] => rewrite modu_repr in X; try first[rep_lia | list_solve]; apply repr_neq_e in X; checkOperatorDischarge2 Op (Z.modulo a b) o g
   end.
 
 Ltac assignandRewrite arg v :=
@@ -186,7 +238,6 @@ Ltac fireTreeOrListNull sx ind :=
   match sx with
   | nil => idtac
   | tree_rep _ ind :: _ => rewrite (tree_rep_null _ ind) by auto 
-  (*| listrep _ ind :: _ => rewrite (listrep_null _ ind) by auto *)
   | _ :: ?sx' => fireTreeOrListNull sx' ind 
   end.
   
@@ -206,53 +257,66 @@ Ltac triggerNullList :=
  match goal with
  | [X : nullval = nullval <-> ?l = [] |- _] => progress (assert (l = (@nil Z)) by (apply X; reflexivity); subst; clear X)
  end.
- 
-Ltac doForwardCall l :=
-   match l with
-   | nil => false
-   | (Esizeof ?arg _) :: _ => arg   
-   | _ :: ?l' => doForwardCall l'
-   end.
 
 Ltac is_var_in_hyps var :=
   match goal with
   | [ H: context[var] |- _ ] => true
   | _ => false
   end. 
+
+Ltac matchSepListBool sx l := 
+  match sx with 
+  | nil => false 
+  | listrep l _ :: _ => true 
+  | _ :: ?sx' => matchSepListBool sx' 
+  end.
+
+Ltac rewriteLengthNullNotNull := 
+  repeat match goal with 
+  | [H: Zlength ?l = _ |- ?g] => progress (
+                                 match g with 
+                                 | semax _ (PROPx _ (LOCALx _ (SEPx ?sx))) _ _ => 
+                                  let x := matchSepListBool sx l in 
+                                  match x with 
+                                  | true => tryif (assert (Zlength l = 0) by list_solve) then  
+                                            clearMatch (Zlength l = 0); rewrite (listrep_null_length l _) by list_solve; subst 
+                                            else (tryif (assert (Zlength l > 0) by list_solve) then
+                                            clearMatch (Zlength l > 0); rewrite (listrep_nonnull_length l _) by list_solve;
+                                            match goal with 
+                                            | |- context [EX (h : _) (hs : _) (y : _), _] => 
+                                                let hvv := fresh h in (let hsv := fresh hs in (let hyv := fresh y in Intros hvv hsv hyv))
+                                            end else idtac) 
+                                  | false => idtac
+                                  end
+                                | _ => idtac
+                                end)
+  end. 
   
 Ltac sepListMatch sx h :=
   match sx with 
   | nil => constr:((tt))
-  | (data_at ?sh _ (Vint (Int.repr ?a)) h) :: _ =>  let x := (is_var_in_hyps sh) in (match x with 
-                                                          | true => constr:((sh, a)) 
-                                                          | false => constr:((a, tt))
+  | (data_at ?sh _ (Vint (Int.repr ?a')) h) :: _ =>  let x := (is_var_in_hyps sh) in (match x with 
+                                                          | true => constr:((sh, a')) 
+                                                          | false => constr:((a', tt))
                                                           end)
-  | (data_at ?sh _ (Vbyte ?a) h) :: _ =>  let x := (is_var_in_hyps sh) in (match x with 
-                                                | true => constr:((sh, a)) 
-                                                | false => constr:((a, tt))
-                                                end)
-  | (data_at ?sh _ (map Vbyte ?a) h) :: _ =>  let x := (is_var_in_hyps sh) in (match x with 
-                                                    | true => constr:((sh, a)) 
-                                                    | false => constr:((a, tt))
-                                                    end)
-  | (data_at ?sh _ (map Vint (map Int.repr ?a)) h) :: _ =>  let x := (is_var_in_hyps sh) in (match x with 
-                                                                  | true => constr:((sh, a)) 
-                                                                  | false => constr:((a, tt))
+  | (data_at ?sh _ (map Vint (map Int.repr ?a')) h) :: _ =>  let x := (is_var_in_hyps sh) in (match x with 
+                                                                  | true => constr:((sh, a')) 
+                                                                  | false => constr:((a', tt))
                                                                   end) 
-  | (data_at ?sh _ (Vint (Int.repr ?h), nullval) h) :: _ => let x := (is_var_in_hyps sh) in (match x with 
-                                                                  | true => constr:((sh, [h])) 
-                                                                  | false => constr:(([h], tt))
+  | (data_at ?sh _ (Vint (Int.repr ?a'), nullval) h) :: _ => let x := (is_var_in_hyps sh) in (match x with 
+                                                                  | true => constr:((sh, [a'])) 
+                                                                  | false => constr:(([a'], tt))
                                                                   end)
-  | (data_at ?sh _ (Vint (Int.repr ?h), ?h0) h) :: _ =>  let x := (is_var_in_hyps sh) in (let x' :=  sepListMatch sx h0 in 
+  | (data_at ?sh _ (Vint (Int.repr ?a'), ?h0) h) :: _ =>  let x := (is_var_in_hyps sh) in (let x' :=  sepListMatch sx h0 in 
                                                                   match x with 
                                                                   | true => match x' with 
-                                                                            | (?v,tt) => constr:((sh, h :: v))
+                                                                            | (?v,tt) => constr:((sh, a' :: v))
                                                                             end 
                                                                   | false => match x' with 
-                                                                             | (?v,tt) => constr:((h :: v, tt))
+                                                                             | (?v,tt) => constr:((a' :: v, tt))
                                                                             end               
                                                                   end)
-  | (data_at ?sh t_struct_tree (Vint (Int.repr ?keyv), (Vint (Int.repr ?valv), (?pladd, ?pradd))) h) :: _ => 
+  | (data_at ?sh _ (Vint (Int.repr ?keyv), (Vint (Int.repr ?valv), (?pladd, ?pradd))) h) :: _ => 
                 let x := (is_var_in_hyps sh) in (let xl := sepListMatch sx pladd in 
                 (let xr := sepListMatch sx pradd in   
                  match x with 
@@ -279,7 +343,6 @@ Ltac listMatchReturn lx sx h :=
   match lx with
   | nil => constr:((h,tt))
   | temp h (Vint (Int.repr ?v)) :: _ => constr:((v,tt))
-  | temp h (Vbyte ?v) :: _ => constr:((v,tt))
   | temp h ?v :: _ => let x := sepListMatch sx v in constr:((v, x)) (*value,share,variable*)
   | _ :: ?lx' => listMatchReturn lx' sx h
   end.
@@ -288,7 +351,6 @@ Ltac listMatchReturnVariable lx h :=
   match lx with
   | nil => h
   | temp h (Vint (Int.repr ?v)) :: _ => v
-  | temp h (Vbyte ?v) :: _ => v
   | temp h ?v :: _ => v
   | _ :: ?lx' => listMatchReturnVariable lx' h
   end.  
@@ -312,7 +374,8 @@ Ltac listTravIdtac l lx sx :=
   | (Ebinop Oadd ?o1 ?o2 _) :: ?l' =>  let x := listTravIdtac l' lx sx in (let ro1 := returnMatchOperand o1 lx in 
                                        (let ro2 := returnMatchOperand o2 lx in constr:((ro1 + ro2,x))))
   | (Ebinop Osub ?o1 ?o2 _) :: ?l' =>  let x := listTravIdtac l' lx sx in (let ro1 := returnMatchOperand o1 lx in 
-                                       (let ro2 := returnMatchOperand o2 lx in constr:((ro1 - ro2,x))))                                     
+                                       (let ro2 := returnMatchOperand o2 lx in constr:((ro1 - ro2,x))))
+  | (Esizeof ?o _) :: ?l' => let x := listTravIdtac l' lx sx in constr:((sizeof o,x))                                    
   | ?h :: ?l' => let x := listTravIdtac l' lx sx in constr:((h,x))
   end.  
   
@@ -362,7 +425,7 @@ Ltac conjunctHypothesis :=
   | [ H' : Forall _ (_ :: _) |- _] => apply Forall_cons_iff in H'; destruct H' as [? ?]; conjunctHypothesis
   | [ H' : Forall2 _ (_ :: _) (_ :: _) |- _] => apply Forall2_cons_iff in H'; destruct H' as [? ?]; conjunctHypothesis
   | [ H' : _ /\ _ |- _ ] => destruct H' as [? ?]; conjunctHypothesis
-  | [H' :  _ |- _] => idtac "No conjunctions present"
+  | [H' :  _ |- _] => idtac 
   end.
 
 Ltac disjunctHypothesis :=
@@ -374,11 +437,6 @@ Ltac disjunctHypothesis :=
 Ltac disjunctHypothesisFname H' :=
   repeat match goal with
   | [ H : _ \/ _ |- _ ] => progress (tryif (unify H H') then destruct H as [H | H] else idtac ) 
-  end.
-
-Ltac fireAppropriateMatch H :=
-  match goal with
-  | |- ?g => first[progress (checkPresenceConclusion g) |  try move H at bottom; is_hypothesis_present H g]
   end.
 
 Ltac fireAppropriateConclusion := (*used for others*)
@@ -409,7 +467,34 @@ Ltac checkPresenceForall H' :=
                                                                                   else (tryif (assert (lo1' < lo1 /\ lo2' < lo2) by lia) then clearMatch (lo1' < lo1 /\ lo2' < lo2);
                                                                                   rewrite sublist_split with lo1' lo1 hi1 l1 by list_solve; rewrite sublist_split with lo2' lo2 hi2 l2 by list_solve; 
                                                                                   apply Forall2_app else idtac )))
-                                                                                end else idtac "Not unified"                                                         
+                                                                                end else idtac "Not unified"  
+  | [H: Forall2 ?fr (sublist ?lo ?hi ?l)(generate_list (Z.to_nat ?len')) |- ?g] => tryif (unify H H') then  
+                                                                                match g with 
+                                                                                | Forall2 fr (sublist ?low hi l)(generate_list (Z.to_nat ?len)) => 
+                                                                                   tryif (assert (lo + 1 = low /\ len + 1 = len') by lia) then 
+                                                                                   rewrite generateFirstNSplit in H by lia;
+                                                                                   replace (Z.to_nat len' - 1)%nat with (Z.to_nat len) in H by lia; 
+                                                                                   rewrite sublist_split with lo (lo + 1) hi l in H by list_solve; 
+                                                                                   apply Forall2_app_inv in H; try destruct H as [? ?]
+                                                                                   else (
+                                                                                   tryif (assert (low + 1 = lo /\ len' + 1 = len) by lia) then 
+                                                                                   rewrite generateFirstNSplit by lia;
+                                                                                   replace (Z.to_nat len - 1)%nat with (Z.to_nat len') by lia; 
+                                                                                   rewrite sublist_split with low (low + 1) hi l by list_solve; 
+                                                                                   apply Forall2_app
+                                                                                   else idtac)
+                                                                                end else idtac
+  | [H: Forall2 _ (sublist ?lo ?hi ?l)(?he :: ?ta) |- ?g] => tryif (unify H H') then 
+                                                        match g with
+                                                        | Forall2 _ (sublist (lo + 1) hi l) ta => rewrite sublist_split with lo (lo + 1) hi l in H by list_solve; 
+                                                          rewrite !sublist_len_1 in H by list_solve; simpl in H; 
+                                                          apply Forall2_cons_iff in H; destruct H as [? ?]
+                                                        end else idtac
+  | [H: Forall2 _ (sublist (?lo + 1) ?hi ?l) ?ta |- ?g] => tryif (unify H H') then 
+                                                        match g with
+                                                        | Forall2 _ (sublist lo hi l) (_ :: ta) => rewrite sublist_split with lo (lo + 1) hi l by list_solve; 
+                                                          rewrite !sublist_len_1 by list_solve; simpl; apply Forall2_cons_iff
+                                                        end else idtac
   | [H : In _ (sublist ?lo ?hi ?l) |- ?g] => tryif (unify H H') then  
                                              match g with 
                                              | In _ (sublist ?lo' hi l) => tryif (assert (lo = lo' + 1) by lia) then clearMatch (lo = lo' + 1);
@@ -423,7 +508,6 @@ Ltac checkPresenceForall H' :=
                                                else (tryif (assert (lo > lo') by lia) then clearMatch (lo > lo'); 
                                                rewrite sublist_split with lo' lo hi l by list_solve; apply in_app_iff else idtac)))(*disjuction*)
                                              end else idtac "Not unified"
-
   | [H : Forall _ (sublist ?lo ?hi ?l) |- ?g] => tryif (unify H H') then 
                                                  match g with 
                                                  | Forall _ (sublist ?lo' hi l) => tryif (assert (lo = lo' + 1) by lia) then clearMatch (lo = lo' + 1);
@@ -440,6 +524,21 @@ Ltac checkPresenceForall H' :=
                                                  end else idtac "Not unified"
   
   | [ H : _ |- _ ] => idtac "Not matched with any of the above"
+  end.
+
+Ltac resolveContradiction :=  
+  match goal with 
+  | [H: Forall2 _ (sublist ?lo ?hi ?l)(_ :: _) |- _] => rewrite sublist_split with lo (lo + 1) hi l in H by list_solve; 
+                                                        rewrite !sublist_len_1 in H by list_solve; simpl in H; 
+                                                        apply Forall2_cons_iff in H; destruct H as [? ?]; list_solve
+  | [H: Forall2 _ (sublist ?lo1 ?hi1 ?l1)(sublist ?lo2 ?hi2 ?l2) |- _] => rewrite sublist_split with lo1 (lo1 + 1) hi1 l1 in H by list_solve; 
+                                                          rewrite sublist_split with lo2 (lo2 + 1) hi2 l2 in H by list_solve; 
+                                                          rewrite !sublist_len_1 in H by list_solve; simpl in H; 
+                                                          apply Forall2_cons_iff in H; destruct H as [? ?]; list_solve
+  | [H: Forall2 _ (sublist ?lo ?hi ?l)(generate_list (Z.to_nat ?len)) |- _] => rewrite generateFirstNSplit in H by lia;
+                                                          rewrite sublist_split with lo (lo + 1) hi l in H by list_solve; 
+                                                          rewrite !sublist_len_1 in H by list_solve; simpl in H; 
+                                                          apply Forall2_cons_iff in H; destruct H as [? ?]; list_solve                                                  
   end.
 
 Ltac substituteIndValue val := 
@@ -485,30 +584,23 @@ Ltac forwardCallExplicitList :=
   | |- semax _ (PROPx ?px' (LOCALx ?lx' (SEPx ?sx'))) (Ssequence (Scall _ (Evar ?n' _) ?l') _) _ => let x := listTravIdtac l' lx' sx' in forwardCallExplicit x
   end.
 
-
-Ltac forwardFollowMalloc l :=  let x := doForwardCall l in  
-  match x with 
-   | false =>  idtac
-   | _ =>  match goal with 
-           | |- ?t => match t with 
-                      | semax _ (EX v : _, _ _ _) _ _ =>  let fv := fresh v in (Intros fv; assignandRewrite x fv;
+Ltac forwardFollowMalloc :=
+   match goal with 
+   | |- ?t => match t with 
+              | semax _ (EX v : _, _ _ _) _ _ =>  let fv := fresh v in (Intros fv; 
                                rewrite memory_block_data_at_ by auto)
-                      | context[memory_block _ ?v _] => assert (sizeof x = v) as Hszassert by reflexivity; rewrite <- Hszassert; entailer!; 
-                               rewrite memory_block_data_at_ by auto; entailer!
-                      | _ => idtac
-                      end
-           end
-  end.
+              | _ => idtac
+              end
+   end.
 
 Ltac simplifyLists := 
   match goal with 
   | |- context [ Zlength []] => rewrite Zlength_nil; simplifyLists
   | |- context [ Zlength (_ :: _)] => rewrite Zlength_cons; simplifyLists
   | |- context [sublist _ _ []] => rewrite sublist_of_nil; simplifyLists 
-  | |- ?g => idtac "reached but not matched: "g
+  | |- _ => try rewrite Zlength_nil_inv by first[rep_lia | list_solve]
   end.
 
-  
 Ltac tryInstantiateExistsValue Qr := 
   match Qr with
   | context [ !! (?v = ?a)] => idtac 
@@ -550,110 +642,127 @@ Ltac simplifyEntailment P Q :=
                                   match P with 
                                   | context [data_at sh _ ?padd' padd2] => Exists padd'; entailer!! 
                                   end
-                               end) | tryInstantiateExistsValue Q]
+                               end) | tryInstantiateExistsValue Q | simpl ]
   | context [ !! ?f ] => first[progress entailer! | entailer!!] 
-  | context G [tree_rep (T ?a ?b ?c ?d) ?r] =>
-                              let x := eval unfold tree_rep in (tree_rep (T a b c d) r) in 
-                              let x := eval fold tree_rep in x in
-                              let y := context G[x] in change y
-  | context [tree_rep (?f ?t') ?r] => simpl
-  | context G [sllbox_rep ?l' ?r] =>
+  | context G [tree_rep (?f ?t') ?r] => 
+            let x := eval simpl in (tree_rep (f t') r) in (*simplify will unfold and fold - no need to do explicitly*)
+            let y := context G[x] in change (P |-- y)
+  | context G [listrep (?f ?l') ?r] => 
+            let x := eval simpl in (listrep (f l') r) in 
+            let y := context G[x] in change (P |-- y)
+  | context G [sllbox_rep ?l' ?r] => (*simplify does not unfold here*)
             let x := eval simpl in (sllbox_rep l' r) in
             let x' := eval unfold sllbox_rep in x in 
             let x' := eval fold sllbox_rep in x' in
-            let y := context G[x'] in change y
-  | context G [listrep (?v :: ?l') ?r] =>
-            let x := eval unfold listrep in (listrep (v :: l') r) in 
-            let x := eval fold listrep in x in
-            let y := context G[x] in change y
-  | context [listrep (?f ?l') ?r] => simpl
+            let y := context G[x'] in change (P |-- y)
   | _ =>  first [progress entailer! | progress entailer!! | simpl]
   end.   
 
-Ltac progltac g' fname freefuncName :=
-  match goal with
-  | |- ?g => match g' with 
-             | g => tryif (progress (disjunctHypothesisFname fname)) then progltac false fname freefuncName
-                    else ( tryif (progress fireMinTactic) then progltac false fname freefuncName
-                    else idtac "Aborting, same goal: "g" and: "g')
-             | _ => try (triggerNullNoNullMatch g); try triggerNullList; try (disjunctHypothesisFname fname); try matchTreeAndSubstitute; try matchListAndSubstitute;
-                    try contradiction; fireFailForward; conjunctHypothesis; rewriteWrapperInGoal; 
-  match g with 
-  | semax _ _ (Ssequence (Ssequence _ _) _)  _ => apply seq_assoc1; progltac g fname freefuncName
+Ltac destructHform H' :=
+  match goal with 
+  | [H: and _ _ |- _] => tryif (unify H H') then destruct H as [? H] else idtac 
+  | [H: _ |- _] => idtac
+  end.
+
+Ltac progltac g' fname freefuncName count :=
+  tryif (assert (count = 100) by (simpl; reflexivity)) then idtac "matched: "count else 
+  (match goal with
+  | |- ?g'' => (*idtac "Count: "count;*) match g' with 
+             | g'' => idtac "matched.."; tryif (progress (disjunctHypothesisFname fname)) then progltac false fname freefuncName (count + 1)
+                    else ( tryif (progress fireMinTactic) then progltac false fname freefuncName (count + 1)
+                    else idtac "Aborting, same goal: "g''" and: "g')
+             | _ => (*idtac "current: "g'' "previous: "g';*) try (triggerNullNoNullMatch g''); try triggerNullList; try rewriteLengthNullNotNull;
+                    try matchTreeAndSubstitute; try matchListAndSubstitute; conjunctHypothesis; fireFailForward; 
+                    try contradiction; try (disjunctHypothesisFname fname); rewriteWrapperInGoal; 
+  match goal with 
+  | |- ?g => 
+  match g with  
+  | semax _ _ (Ssequence (Ssequence _ _) _)  _ => apply seq_assoc1; progltac g fname freefuncName (count + 1)
   | semax _ _ (Sloop _)  _ => fail "Error - loops not supported"
   | semax _ _ (Ssequence (Sloop _) _)  _ => fail "Error - loops not supported"
-  | semax _ (EX v : _, _ _ _) _ _ =>  let fv := fresh v in (Intros fv; progltac g fname freefuncName)
-  | semax _ _ (Sifthenelse _ _ _)  _ => forward_if; progltac g fname freefuncName
-  | semax _ _ (Ssequence (Sifthenelse _ _ _) _)  _ => apply semax_if_seq; progltac g fname freefuncName
+  | semax _ (EX v : _, _ _ _) _ _ =>  let fv := fresh v in (Intros fv; progltac g fname freefuncName (count + 1))
+  | semax _ _ (Sifthenelse _ _ _)  _ => forward_if; progltac g fname freefuncName (count + 1)
+  | semax _ _ (Ssequence (Sifthenelse _ _ _) _)  _ => apply semax_if_seq; progltac g fname freefuncName (count + 1)
   | semax _ (PROPx ?px (LOCALx ?lx (SEPx ?sx))) (Ssequence (Scall _ (Evar ?n _) ?l) _)  _ => match n with 
-                                                                                             | freefuncName => first[freeForwardCall lx l; try (entailer!; rewrite memory_block_data_at_ by auto; entailer!); progltac g fname freefuncName  | idtac "Unable to infer forward call witness for free"]
-                                                                                             | _ => first[ first[forward_call | forwardCallExplicitList]; try (forwardFollowMalloc l); progltac g fname freefuncName |  idtac "Error - Failed to infer forward call witness - Please provide them"]
+                                                                                             | freefuncName => first[freeForwardCall lx l; try (entailer!; rewrite memory_block_data_at_ by auto; entailer!); progltac g fname freefuncName (count + 1) | idtac "Unable to infer forward call witness for free"]
+                                                                                             | _ => first[ (*first[forward_call |*) forwardCallExplicitList; try (forwardFollowMalloc); progltac g fname freefuncName (count + 1) |  idtac "Error - Failed to infer forward call witness - Please provide them"]
                                                                                              end
   | semax _ (PROPx ?px (LOCALx ?lx (SEPx ?sx))) (Scall _ (Evar ?n _) ?l) _ =>  match n with        
-                                                                               | freefuncName => first[freeForwardCall lx l; try(entailer!; rewrite memory_block_data_at_ by auto; entailer!); progltac g fname freefuncName  | idtac "Unable to infer forward call witness for free"]
-                                                                               | _ => first[ first[forward_call | forwardCallExplicitList]; try (forwardFollowMalloc l); progltac g fname freefuncName |  idtac "Error - Failed to infer forward call witness - Please provide them"]
+                                                                               | freefuncName => first[freeForwardCall lx l; try(entailer!; rewrite memory_block_data_at_ by auto; entailer!); progltac g fname freefuncName (count + 1) | idtac "Unable to infer forward call witness for free"]
+                                                                               | _ => first[ (*first[forward_call |*) forwardCallExplicitList; try (forwardFollowMalloc); progltac g fname freefuncName (count + 1) |  idtac "Error - Failed to infer forward call witness - Please provide them"]
                                                                                end 
-  |semax _ _ ?c  _ =>  first [progress (try_forward (1000)%nat); progltac g fname freefuncName |  idtac "Error - Can't move forward here"]
+  |semax _ _ ?c  _ =>  first [progress (try_forward (1000)%nat); progltac g fname freefuncName (count + 1) |  idtac "Error - Can't move forward here"]
   | context[if ?Op ?o1 ?o2 then _ else _ ] => match o1 with
-                                              | Z.modulo ?o1' ?o2' => matchModulo o1' o2' Op o2 g; progltac g fname freefuncName
-                                              | _ => checkOperatorDischarge2 Op o1 o2 g; progltac g fname freefuncName
+                                              | Z.modulo ?o1' ?o2' => matchModulo o1' o2' Op o2 g; progltac g fname freefuncName (count + 1)
+                                              | _ => checkOperatorDischarge2 Op o1 o2 g; progltac g fname freefuncName (count + 1)
                                               end
-  | ENTAIL _, _ |-- _ => first[progress entailer! | entailer!!]; progltac g fname freefuncName 
-  | EX v : _, _ |-- _ => let fv := fresh v in (Intros fv; progltac g fname freefuncName)
-  | _ |-- EX a : bool, !! (_ /\ Vint Int.one = bool2val a) && _ => Exists true; first[progress entailer! | entailer!!]; progltac g fname freefuncName
-  | _ |-- EX a : bool, !! (_ /\ Vint Int.zero = bool2val a) && _ => Exists false; first[progress entailer! | entailer!!]; progltac g fname freefuncName
-  | _ |-- EX a : bool, !! (_ /\ force_val (sem_cast_i2bool (bool2val ?v)) = bool2val a) && _ => Exists v; first[progress entailer! | entailer!!]; progltac g fname freefuncName
-  | _ |-- EX a : Z, !! (_ /\ Vint (Int.repr ?val) = Vint (Int.repr a)) && _ => Exists val; first[progress entailer! | entailer!!]; progltac g fname freefuncName
-  | data_at _ _ _ _ |-- data_at _ _ _ _ => list_solve; progltac g fname freefuncName
-  | ?t |-- emp =>  simpl; entailer!!; progltac g fname freefuncName
+  | context[_ -* _] => idtac 
+  | ENTAIL _, _ |-- _ => first[progress entailer! | entailer!!]; progltac g fname freefuncName (count + 1)
+  | EX v : _, _ |-- _ => let fv := fresh v in (Intros fv; progltac g fname freefuncName (count + 1))
+  | _ |-- EX a : bool, !! (_ /\ Vint Int.one = bool2val a) && _ => Exists true; first[progress entailer! | entailer!!]; progltac g fname freefuncName (count + 1)
+  | _ |-- EX a : bool, !! (_ /\ Vint Int.zero = bool2val a) && _ => Exists false; first[progress entailer! | entailer!!]; progltac g fname freefuncName (count + 1)
+  | _ |-- EX a : bool, !! (_ /\ force_val (sem_cast_i2bool (bool2val ?v)) = bool2val a) && _ => Exists v; first[progress entailer! | entailer!!]; progltac g fname freefuncName (count + 1)
+  | _ |-- EX a : Z, !! (_ /\ Vint (Int.repr ?val) = Vint (Int.repr a)) && _ => Exists val; first[progress entailer! | entailer!!]; progltac g fname freefuncName (count + 1)
+  | data_at _ _ _ _ |-- data_at _ _ _ _ => list_solve; progltac g fname freefuncName (count + 1)
+  | ?t |-- emp =>  simpl; entailer!!; progltac g fname freefuncName (count + 1)
   | emp |-- ?t =>  match t with 
-                   | context [EX _: _, _] => Exists nullval; simpl; entailer!!; progltac g fname freefuncName
-                   | _ =>  simpl; entailer!!; progltac g fname freefuncName
+                   | context [EX _: _, _] => Exists nullval; simpl; entailer!!; progltac g fname freefuncName (count + 1)
+                   | _ =>  simpl; entailer!!; progltac g fname freefuncName (count + 1)
                   end
-  | ?Pr |-- ?Qr =>  simplifyEntailment Pr Qr; progltac g fname freefuncName 
-  | Forall _ (_ :: _) => simplifyLists; apply Forall_cons_iff; split; progltac g fname freefuncName
-  | Forall (map (_)) _ =>  simplifyLists; tryif solve[list_solve ] then idtac else apply Forall_map; progltac g fname freefuncName
-  | Forall _ ?l => simplifyLists; tryif solve[list_solve] then idtac else first[progress (fireHypothesisOnSublist fname) | fireAppropriateHypothesis fname; fireHypothesisOnSublist fname]; progltac g fname freefuncName
-  | Forall2 _ (_ :: _) (_ :: _) =>  apply Forall2_cons_iff; split; progltac g fname freefuncName
-  | Forall2 _ _ _ => simplifyLists; tryif solve[list_solve] then idtac else first[progress (fireHypothesisOnSublist fname) | fireAppropriateHypothesis fname; fireHypothesisOnSublist fname]; progltac g fname freefuncName
-  | In (Znth ?i _) (sublist ?j _ _) => simplifyLists; tryif (assert (j >= i) by lia) then clearMatch (j >= i); apply In_Znth_iff; exists (j - i); progltac g fname freefuncName else idtac "Cannot resolve idtac goal"
-  | In ?v (_ :: _) => simplifyLists; substituteIndValue v; simpl; tryif solve[list_solve] then idtac else progltac g fname freefuncName
-  | In ?v _ => simplifyLists; substituteIndValue v; tryif solve[list_solve] then idtac else first[progress (fireHypothesisOnSublist fname) | fireAppropriateHypothesis fname; fireHypothesisOnSublist fname]; progltac g fname freefuncName
-  | repable_signed ?a => tryif solve[first[list_solve | rep_lia]] then idtac else idtac "Error - Cannot resolve type"
-  | context[Int.signed (Int.repr _)] => rewrite !Int.signed_repr; try first[ rep_lia | list_solve]; progltac g fname freefuncName
-  | context[Int.unsigned (Int.repr _)] => rewrite !Int.unsigned_repr; try first[rep_lia | list_solve]; progltac g fname freefuncName 
-  | context [Znth _ (?a _)] => unfold a; tryif solve[list_solve] then idtac else progltac g fname freefuncName
-  | context [Zlength (?a _)] => unfold a; tryif solve[list_solve] then idtac else progltac g fname freefuncName
-  | context [Znth _ (map _ _)] => tryif solve[list_solve] then idtac else rewrite !Znth_map; progltac g fname freefuncName
-  | context [Znth _ (sublist _ _ _)] => tryif solve[list_solve] then idtac else rewrite !Znth_sublist by list_solve; progltac g fname freefuncName
-  | context [Zlength (map _ _)] => tryif solve[list_solve] then idtac else rewrite !Zlength_map; progltac g fname freefuncName
-  | context [Zlength (upd_Znth _ _ _)] => tryif solve[list_solve] then idtac else rewrite !Zlength_upd_Znth; progltac g fname freefuncName
-  | context [upd_Znth _ (map _ _) _] => rewrite !upd_Znth_map; progltac g fname freefuncName
-  | context [Zlength (_ ++ _)] => tryif solve[list_solve] then idtac else rewrite !Zlength_app; progltac g fname freefuncName
-  | context [Zlength (sublist _ _ _)] => tryif solve[list_solve] then idtac else rewrite !Zlength_sublist by list_solve; progltac g fname freefuncName
-  | _ <-> _ => split; intros Hform; simpl in Hform; progltac g Hform freefuncName 
-  | _ -> _ => intros Hform; simpl in Hform; progltac g Hform freefuncName
-  | _ /\ _ => split; progltac g fname freefuncName
+  | ?Pr |-- ?Qr =>  match Qr with 
+                    | Pr => entailer! 
+                    | _ => simplifyEntailment Pr Qr; progltac g fname freefuncName (count + 1)
+                    end
+  | Forall _ (upd_Znth _ _ _) => apply Forall_upd_Znth; progltac g fname freefuncName (count + 1)
+  | Forall _ (_ :: _) => simplifyLists; apply Forall_cons_iff; split; progltac g fname freefuncName (count + 1)
+  | Forall (map (_)) _ =>  simplifyLists; tryif solve[list_solve ] then idtac else apply Forall_map; progltac g fname freefuncName (count + 1)
+  | Forall _ ?l => simplifyLists; tryif solve[list_solve] then idtac else first[progress (fireHypothesisOnSublist fname) | fireAppropriateHypothesis fname; fireHypothesisOnSublist fname]; progltac g fname freefuncName (count + 1)
+  | Forall2 _ (_ :: _) (_ :: _) =>  apply Forall2_cons_iff; split; progltac g fname freefuncName (count + 1)
+  | Forall2 _ _ _ => simplifyLists; tryif solve[list_solve] then idtac else first[progress (fireHypothesisOnSublist fname) | fireAppropriateHypothesis fname; fireHypothesisOnSublist fname]; progltac g fname freefuncName (count + 1)
+  | In (Znth ?i _) (sublist ?j _ _) => simplifyLists; tryif (assert (j >= i) by lia) then clearMatch (j >= i); apply In_Znth_iff; exists (j - i); progltac g fname freefuncName (count + 1) else idtac "Cannot resolve idtac goal"
+  | In ?v (_ :: _) => simplifyLists; substituteIndValue v; simpl; tryif solve[list_solve] then idtac else progltac g fname freefuncName (count + 1)
+  | In ?v _ => simplifyLists; substituteIndValue v; tryif solve[list_solve] then idtac else first[progress (fireHypothesisOnSublist fname) | fireAppropriateHypothesis fname; fireHypothesisOnSublist fname]; progltac g fname freefuncName (count + 1)
+  | repable_signed ?a => unfold repable_signed; progltac g fname freefuncName (count + 1)
+  | _ <= _ < _ => tryif solve [rep_lia | list_solve] then idtac else (tryif progress (fireAppropriateConclusion) then progltac g fname freefuncName (count + 1) else idtac) 
+  | _ < _ <= _ => tryif solve [rep_lia | list_solve] then idtac else (tryif progress (fireAppropriateConclusion) then progltac g fname freefuncName (count + 1) else idtac)  
+  (*| Int.min_signed <= Z.modulo _ _ <= Int.max_signed =>  idtac "correct"; apply nmodulomRange; try (apply nModulom); progltac g fname freefuncName (count + 1)*)
+  | _ <= _ <= _ =>  tryif solve [rep_lia | list_solve | apply byteZRelation; first[rep_lia | list_solve]] then idtac else (tryif progress (fireAppropriateConclusion) then progltac g fname freefuncName (count + 1) else idtac) 
+  | _ < _ => tryif solve [rep_lia | list_solve] then idtac else (tryif progress (fireAppropriateConclusion) then progltac g fname freefuncName (count + 1) else idtac) 
+  | _ <= _ =>  tryif solve [rep_lia | list_solve] then idtac else (tryif progress (fireAppropriateConclusion) then progltac g fname freefuncName (count + 1) else idtac)  
+  | _ > _ =>  tryif solve [rep_lia | list_solve ] then idtac else (tryif progress (fireAppropriateConclusion) then progltac g fname freefuncName (count + 1) else idtac)  
+  | _ >= _ => tryif solve [rep_lia | list_solve] then idtac else (tryif progress (fireAppropriateConclusion) then progltac g fname freefuncName (count + 1) else idtac) 
+  | _ <> _ => tryif solve [rep_lia | list_solve] then idtac else (tryif progress (fireAppropriateConclusion) then progltac g fname freefuncName (count + 1) else idtac) 
+  | context [Znth _ (?a _)] => unfold a; tryif solve[list_solve] then idtac else progltac g fname freefuncName (count + 1)
+  | context [Zlength (?a _)] => unfold a; tryif solve[list_solve] then idtac else progltac g fname freefuncName (count + 1) 
+  | context [Znth _ (map _ _)] => tryif solve[list_solve] then idtac else rewrite !Znth_map; progltac g fname freefuncName (count + 1)
+  | context [Znth _ (sublist _ _ _)] => tryif solve[list_solve] then idtac else rewrite !Znth_sublist by list_solve; progltac g fname freefuncName (count + 1)
+  | context [Zlength (map _ _)] => tryif solve[list_solve] then idtac else rewrite !Zlength_map; progltac g fname freefuncName (count + 1)
+  | context [Zlength (upd_Znth _ _ _)] => tryif solve[list_solve] then idtac else rewrite !Zlength_upd_Znth; progltac g fname freefuncName (count + 1)
+  | context [upd_Znth _ (map _ _) _] => rewrite !upd_Znth_map; progltac g fname freefuncName (count + 1)
+  | context [Zlength (_ ++ _)] => tryif solve[list_solve] then idtac else rewrite !Zlength_app; progltac g fname freefuncName (count + 1)
+  | context [Zlength (sublist _ _ _)] => tryif solve[list_solve] then idtac else rewrite !Zlength_sublist by list_solve; progltac g fname freefuncName (count + 1)
+  (*| (and _ _) <-> _ => split; intros Hform; destruct Hform as [? Hform]; simpl in Hform; progltac g Hform freefuncName (count + 1) *)
+  | _ <-> _ => split; intros Hform; destructHform Hform; simpl in Hform; progltac g Hform freefuncName (count + 1)
+  (*| (and _ _) -> _ => intros Hform; destruct Hform as [? Hform]; simpl in Hform; progltac g Hform freefuncName (count + 1)*)
+  | _ -> _ => intros Hform; destructHform Hform; simpl in Hform; progltac g Hform freefuncName (count + 1)
+  | _ /\ _ => split; progltac g fname freefuncName (count + 1)
   | ?l \/ ?r => tryif solve[unifyLeft l g | unifyRight r g ] then idtac
                   else (tryif progress (disjunctHypothesisFname fname) then 
-                  solve[left; progltac g fname freefuncName | right; progltac g fname freefuncName | idtac "Assistance needed to resolve disjunction"]
-                  else solve[left; progltac g fname freefuncName | right; progltac g fname freefuncName | fireAppropriateConclusion; progltac g fname freefuncName])
+                  solve[left; progltac g fname freefuncName (count + 1) | right; progltac g fname freefuncName (count + 1) | idtac "Assistance needed to resolve disjunction"]
+                  else solve[left; progltac g fname freefuncName (count + 1) | right; progltac g fname freefuncName (count + 1) | fireAppropriateConclusion; progltac g fname freefuncName (count + 1)])
   | force_val (sem_cast_i2bool (bool2val ?v)) = bool2val ?v' => match v with 
                                                                 | v' => apply forceval_cast  
-                                                                | _ => simpl; progltac g fname freefuncName
+                                                                | _ => simpl; progltac g fname freefuncName (count + 1)
                                                                 end
   | context [bool2val ?v] => solve[reflexivity | destruct v; simpl; reflexivity]
   | Datatypes.length _ = Datatypes.length _ => apply invariants.Zlength_eq; list_solve
-  | _ = _ =>  tryif solve [simpl; reflexivity | rep_lia | list_solve ] then idtac else (tryif progress (fireAppropriateConclusion) then progltac g fname freefuncName
-                  else simpl; progltac g fname freefuncName)
-  | _ <= _ < _ => tryif solve [rep_lia | list_solve] then idtac else idtac "Error - Unable to resolve _ <= _ < _. User assistance needed."
-  | _ <= _ <= _ => tryif solve [rep_lia | list_solve] then idtac else idtac "Error - Unable to resolve _ <= _ <= _. User assistance needed."
-  | _ < _ => tryif solve [rep_lia | list_solve] then idtac else idtac "Error - Unable to resolve _ < _. User assistance needed." 
-  | _ <= _ => tryif solve [rep_lia | list_solve] then idtac else idtac "Error - Unable to resolve _ <= _. User assistance needed." 
-  | _ > _ => apply Z.lt_gt; tryif solve [rep_lia | list_solve ] then idtac else idtac "Error - Unable to resolve _ > _. User assistance needed."
-  | _ >= _ => apply Z.le_ge; tryif solve [rep_lia | list_solve] then idtac else idtac "Error - Unable to resolve _ >= _. User assistance needed." 
-  | False =>  idtac "Error - Unable to resolve goal - False. User assistance needed."
-  | _ => tryif solve[rep_lia | list_solve] then idtac else idtac "Error - Can't resolve present goal. User assistance needed: "g
+  | false = true => tryif solve[list_solve | resolveContradiction] then idtac else idtac
+  | true = false =>  tryif solve[list_solve | resolveContradiction] then idtac else idtac
+  | _ = _ =>  tryif solve [simpl; reflexivity | rep_lia | list_solve ] then idtac else (tryif progress (fireAppropriateConclusion) then progltac g fname freefuncName (count + 1)
+                  else simpl; progltac g fname freefuncName (count + 1))
+  | False =>  tryif solve[list_solve | resolveContradiction] then idtac else idtac
+  | _ => tryif solve[rep_lia | list_solve | resolveContradiction] then idtac else idtac "Error - Can't resolve present goal. User assistance needed: "g
   end
   end
-  end. 
+  end
+  end). 
