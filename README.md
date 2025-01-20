@@ -1,4 +1,4 @@
-# SynthVer
+# SynVer
 ### Getting started:
 
 - Install the [Verified Software Toolchain
